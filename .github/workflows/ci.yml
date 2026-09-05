@@ -21,11 +21,21 @@ jobs:
           node-version: '20'
       # The Kotlin compiler distribution, so tools/verify_all.sh can compile :core and the
       # non-Compose :app sources against tools/android-stubs without the Android SDK.
+      # Pinned to the project's Kotlin version (gradle/libs.versions.toml: kotlin = 2.0.20).
       - name: Install kotlinc
-        run: npm install --no-save --ignore-scripts kotlin-compiler
+        run: npm install --no-save --ignore-scripts kotlin-compiler@2.0.20
+      - name: Locate KOTLIN_HOME
+        run: |
+          JAR=$(find "$GITHUB_WORKSPACE/node_modules/kotlin-compiler" -name kotlin-compiler.jar | head -1)
+          if [ -z "$JAR" ]; then
+            echo "::error::kotlin-compiler.jar not found anywhere under node_modules/kotlin-compiler"
+            find "$GITHUB_WORKSPACE/node_modules/kotlin-compiler" -maxdepth 2 | head -30
+            exit 1
+          fi
+          KH=$(cd "$(dirname "$JAR")/.." && pwd)
+          echo "KOTLIN_HOME=$KH" >> "$GITHUB_ENV"
+          echo "resolved KOTLIN_HOME=$KH"
       - name: Run verify_all (tests, compile checks, template + sheet invariants)
-        env:
-          KOTLIN_HOME: ${{ github.workspace }}/node_modules/kotlin-compiler/package
         run: |
           set +e
           bash tools/verify_all.sh --drift 2>&1 | tee verify.log
@@ -53,7 +63,23 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v3
-      - run: ./gradlew :app:assembleDebug --stacktrace
+        with:
+          cache-disabled: true
+      - name: Build debug APK
+        run: |
+          set +e
+          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee gradle.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "gradle exited $rc — surfacing failure lines as annotations"
+            {
+              sed -n '/FAILURE: Build failed/,/^\* Try:/p' gradle.log
+              grep -nE "error:|e: |Caused by|Exception" gradle.log | head -25
+            } | grep -v '^$' | head -45 | while IFS= read -r line; do
+              echo "::error::${line:0:600}"
+            done
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: rigstudio-debug-apk
