@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import com.rigstudio.app.gfx.height
+import com.rigstudio.app.gfx.width
 import com.rigstudio.core.geom.IntRect
 import com.rigstudio.core.model.Expression
 import com.rigstudio.core.model.MouthShape
