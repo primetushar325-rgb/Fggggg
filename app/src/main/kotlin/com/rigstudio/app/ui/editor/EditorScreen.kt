@@ -530,9 +530,10 @@ private fun AnimationCard(
         title = stringResource(R.string.editor_animation),
         trailing = {
             if (unavailable.isNotEmpty()) {
-                RigTextButton(if (showUnavailable) "Hide" else "${unavailable.size} unavailable") {
-                    showUnavailable = !showUnavailable
-                }
+                RigTextButton(
+                    if (showUnavailable) "Hide" else "${unavailable.size} unavailable",
+                    onClick = { showUnavailable = !showUnavailable },
+                )
             }
         },
     ) {
