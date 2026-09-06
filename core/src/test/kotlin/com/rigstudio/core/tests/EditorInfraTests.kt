@@ -47,8 +47,8 @@ object EditorInfraTests {
             history.record(1)
             history.record(2)
             history.record(3)
-            Assert.equals(2, history.size) { "capacity 2 must hold at most 2 snapshots" }
-            Assert.equals(2, history.undo(4))  { "oldest (1) should have fallen off" }
+            Assert.equals(2, history.size, "capacity 2 must hold at most 2 snapshots")
+            Assert.equals(2, history.undo(4), "oldest (1) should have fallen off")
             Assert.equals(3, history.undo(5))
             Assert.that(!history.canUndo)
         },
@@ -83,7 +83,7 @@ object EditorInfraTests {
             Assert.equals(AppSettings.DEFAULT, AppSettingsCodec.decodeJsonOrNull("not json at all"))
             val partial = AppSettingsCodec.decode(
                 com.rigstudio.core.json.Json.parse("""{"defaultResolution":"NOPE"}"""))
-            Assert.equals(AppSettings.DEFAULT, partial) { "unknown enum must fall back" }
+            Assert.equals(AppSettings.DEFAULT, partial, "unknown enum must fall back")
         },
 
         TestCase("settings seed a fresh export with the user's default resolution and fps") {

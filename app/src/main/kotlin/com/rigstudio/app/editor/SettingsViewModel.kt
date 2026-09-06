@@ -68,7 +68,7 @@ class SettingsViewModel(private val app: RigStudioApplication) : ViewModel() {
         _state.update { it.copy(savedTick = it.savedTick + 1) }
     }
 
-    private inline fun update(block: (SettingsState) -> SettingsState) {
+    private fun update(block: (SettingsState) -> SettingsState) {
         _state.update(block)
         // Auto-save on every change: settings are small and local (V4 §36 spirit).
         app.settingsStore.save(_state.value.settings)

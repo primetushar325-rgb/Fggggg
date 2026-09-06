@@ -104,7 +104,7 @@ fun SettingsScreen(
             SectionCard(title = "About") {
                 Column(
                     Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     androidx.compose.foundation.text.ClickableText(
                         text = androidx.compose.ui.text.AnnotatedString(
