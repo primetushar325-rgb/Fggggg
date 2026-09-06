@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Engine, app logic & character sheet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # The Kotlin compiler distribution, so tools/verify_all.sh can compile :core and the
+      # non-Compose :app sources against tools/android-stubs without the Android SDK.
+      # Pinned to the project's Kotlin version (gradle/libs.versions.toml: kotlin = 2.0.20).
+      - name: Install kotlinc
+        run: npm install --no-save --ignore-scripts kotlin-compiler@2.0.20
+      - name: Locate KOTLIN_HOME
+        run: |
+          JAR=$(find "$GITHUB_WORKSPACE/node_modules/kotlin-compiler" -name kotlin-compiler.jar | head -1)
+          if [ -z "$JAR" ]; then
+            echo "::error::kotlin-compiler.jar not found anywhere under node_modules/kotlin-compiler"
+            find "$GITHUB_WORKSPACE/node_modules/kotlin-compiler" -maxdepth 2 | head -30
+            exit 1
+          fi
+          KH=$(cd "$(dirname "$JAR")/.." && pwd)
+          echo "KOTLIN_HOME=$KH" >> "$GITHUB_ENV"
+          echo "resolved KOTLIN_HOME=$KH"
+      - name: Run verify_all (tests, compile checks, template + sheet invariants)
+        run: |
+          set +e
+          bash tools/verify_all.sh --drift 2>&1 | tee verify.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "verify_all exited $rc — surfacing failure lines as annotations"
+            grep -nE "error:|FAIL|failed|✗|Exception|AssertionError|expected" verify.log | head -40 | while IFS= read -r line; do
+              echo "::error::${line:0:600}"
+            done
+            exit 1
+          fi
+      - name: Upload the rendered blank character sheet
+        uses: actions/upload-artifact@v4
+        with:
+          name: blank-character-sheet
+          path: docs/assets/blank-character-sheet.png
+
+  apk:
+    name: Debug APK (Gradle + Android SDK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-disabled: true
+      - name: Build debug APK
+        run: |
+          set +e
+          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee gradle.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "gradle exited $rc — surfacing failure lines as annotations"
+            {
+              sed -n '/FAILURE: Build failed/,/^\* Try:/p' gradle.log
+              grep -nE "error:|e: |Caused by|Exception" gradle.log | head -25
+            } | grep -v '^$' | head -45 | while IFS= read -r line; do
+              echo "::error::${line:0:600}"
+            done
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rigstudio-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
