@@ -12,6 +12,7 @@ import com.rigstudio.app.data.ProjectStore
 import com.rigstudio.app.render.StageBackground
 import com.rigstudio.app.render.StageSource
 import com.rigstudio.app.render.downscaleTo
+import com.rigstudio.core.anim.AnimationClip
 import com.rigstudio.core.anim.AnimationLibrary
 import com.rigstudio.core.export.ExportFrameRate
 import com.rigstudio.core.export.ExportLimits
@@ -92,6 +93,10 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
 
     /** True while undo()/redo() re-applies a snapshot — setters must not record new steps then. */
     private var restoringHistory = false
+
+    // --- V5 §62/§63: temporary gestures return to the previous base animation -----------------
+    private var baseClipId: String? = null
+    private var gestureReturnJob: Job? = null
 
     /** User-level defaults (V4 §49): loop-by-default and the hidden debug overlay. */
     private val appSettings by lazy { app.settingsStore.load() }
@@ -243,6 +248,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
     fun selectView(view: ViewKind) {
         val current = _state.value
         if (view == current.view) return
+        gestureReturnJob?.cancel()
         if (view !in current.views) {
             _state.update { it.copy(message = unavailableViewMessage(view)) }
             return
@@ -269,6 +275,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
 
     fun selectClip(clipId: String) {
         val clip = AnimationLibrary.byId(clipId) ?: return
+        scheduleGestureReturn(clip)
         val current = _state.value
         val character = character ?: return
 
@@ -301,6 +308,34 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
         }
         publishStage()
         schedulePersist()
+    }
+
+    /**
+     * V5 §63: one-shot gestures (wave, emotions, look back, jump) play for about two cycles and
+     * then hand control back to the previous BASE animation (walk, run, idle…) instead of
+     * always dropping to idle. The crossfade in [com.rigstudio.app.render.StageView] smooths
+     * the hand-off.
+     */
+    private fun scheduleGestureReturn(clip: AnimationClip) {
+        gestureReturnJob?.cancel()
+        gestureReturnJob = null
+        if (clip.id !in GESTURE_CLIPS) {
+            baseClipId = clip.id
+            return
+        }
+        val current = _state.value
+        if (baseClipId == null || baseClipId == clip.id) {
+            baseClipId = current.clip?.id?.takeIf { it != clip.id && it !in GESTURE_CLIPS } ?: IDLE_CLIP_ID
+        }
+        val speed = current.speed.coerceAtLeast(0.05f)
+        val holdMillis = (clip.durationSeconds * GESTURE_CYCLES * 1000f / speed).toLong()
+        gestureReturnJob = viewModelScope.launch {
+            delay(holdMillis)
+            val target = baseClipId
+            if (target != null && _state.value.clip?.id != target) {
+                selectClip(target)
+            }
+        }
     }
 
     // --- transport ----------------------------------------------------------------------------
@@ -585,6 +620,11 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
     companion object {
         /** Exact wording required by the spec when profile artwork is missing. */
         const val SIDE_VIEW_MISSING = "Side View Assets Not Found"
+
+        /** V5 §63: clips that play as temporary gestures and then return to the base clip. */
+        val GESTURE_CLIPS = setOf("wave", "jump", "happy", "sad", "angry", "surprised", "look_back")
+        private const val GESTURE_CYCLES = 2f
+        private const val IDLE_CLIP_ID = "idle"
 
         private const val PERSIST_DEBOUNCE_MILLIS = 400L
         private const val BACKGROUND_MAX_PX = 1920

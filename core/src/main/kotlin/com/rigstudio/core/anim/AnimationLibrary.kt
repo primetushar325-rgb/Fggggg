@@ -78,6 +78,42 @@ object AnimationLibrary {
         1.00f to MouthShape.CLOSED,
     )
 
+    /**
+     * Normalised windows during which each locomotion clip keeps a foot PLANTED (heel already
+     * down, toe not yet off). Within these windows the unit tests assert the foot's world
+     * rotation stays flat (V5 §14: no foot paddle / slide while bearing weight).
+     */
+    data class ContactWindow(
+        val thighId: String,
+        val shinId: String,
+        val footId: String,
+        val from: Float,
+        val to: Float,
+    )
+
+    val FOOT_CONTACT_WINDOWS: Map<String, List<ContactWindow>> = mapOf(
+        "walk" to listOf(
+            ContactWindow(BoneIds.THIGH_L, BoneIds.SHIN_L, BoneIds.FOOT_L, 0.00f, 0.30f),
+            ContactWindow(BoneIds.THIGH_R, BoneIds.SHIN_R, BoneIds.FOOT_R, 0.50f, 0.80f),
+        ),
+        "walk_talk" to listOf(
+            ContactWindow(BoneIds.THIGH_L, BoneIds.SHIN_L, BoneIds.FOOT_L, 0.00f, 0.30f),
+            ContactWindow(BoneIds.THIGH_R, BoneIds.SHIN_R, BoneIds.FOOT_R, 0.50f, 0.80f),
+        ),
+        "run" to listOf(
+            ContactWindow(BoneIds.THIGH_L, BoneIds.SHIN_L, BoneIds.FOOT_L, 0.00f, 0.15f),
+            ContactWindow(BoneIds.THIGH_R, BoneIds.SHIN_R, BoneIds.FOOT_R, 0.50f, 0.65f),
+        ),
+        "side_walk" to listOf(
+            ContactWindow(BoneIds.THIGH_R, BoneIds.SHIN_R, BoneIds.FOOT_R, 0.00f, 0.30f),
+            ContactWindow(BoneIds.THIGH_L, BoneIds.SHIN_L, BoneIds.FOOT_L, 0.50f, 0.80f),
+        ),
+        "side_run" to listOf(
+            ContactWindow(BoneIds.THIGH_R, BoneIds.SHIN_R, BoneIds.FOOT_R, 0.00f, 0.15f),
+            ContactWindow(BoneIds.THIGH_L, BoneIds.SHIN_L, BoneIds.FOOT_L, 0.50f, 0.65f),
+        ),
+    )
+
     private val BLINK = expressions(
         0.00f to Expression.NEUTRAL,
         0.42f to Expression.CLOSED,
@@ -166,36 +202,47 @@ object AnimationLibrary {
                 BoneIds.HEAD,
                 k(0.00f, -1.5f), k(0.25f, -3f), k(0.50f, -1.5f), k(0.75f, -3f), k(1.00f, -1.5f),
             ),
+            // V5 §9/§10: the eight walk phases (contact/down/passing/up × both legs). While a
+            // foot is planted its rotation cancels thigh+shin so it stays FLAT on the ground
+            // instead of paddling (V5 §14); the swing phases fold the knee and point the toe.
             track(
                 BoneIds.THIGH_L,
-                k(0.00f, -26f), k(0.25f, -6f), k(0.50f, 22f), k(0.75f, 4f), k(1.00f, -26f),
+                k(0.00f, -26f), k(0.12f, -15f), k(0.25f, -2f), k(0.38f, 12f), k(0.50f, 22f),
+                k(0.62f, 8f), k(0.75f, -8f), k(0.88f, -20f), k(1.00f, -26f),
             ),
             track(
                 BoneIds.SHIN_L,
-                k(0.00f, 8f), k(0.15f, 26f), k(0.35f, 6f), k(0.50f, 2f), k(0.70f, 42f), k(1.00f, 8f),
+                k(0.00f, 8f), k(0.12f, 22f), k(0.25f, 14f), k(0.38f, 26f), k(0.50f, 42f),
+                k(0.62f, 48f), k(0.75f, 20f), k(0.88f, 6f), k(1.00f, 8f),
             ),
             track(
                 BoneIds.FOOT_L,
-                k(0.00f, 8f), k(0.25f, 0f), k(0.50f, -12f), k(0.75f, 6f), k(1.00f, 8f),
+                k(0.00f, 17f), k(0.12f, -8f), k(0.25f, -11f), k(0.38f, -30f), k(0.50f, -10f),
+                k(0.62f, -14f), k(0.75f, -6f), k(0.88f, 16f), k(1.00f, 17f),
             ),
             track(
                 BoneIds.THIGH_R,
-                k(0.00f, 22f), k(0.25f, 4f), k(0.50f, -26f), k(0.75f, -6f), k(1.00f, 22f),
+                k(0.00f, 22f), k(0.12f, 8f), k(0.25f, -8f), k(0.38f, -20f), k(0.50f, -26f),
+                k(0.62f, -15f), k(0.75f, -2f), k(0.88f, 12f), k(1.00f, 22f),
             ),
             track(
                 BoneIds.SHIN_R,
-                k(0.00f, 2f), k(0.20f, 42f), k(0.50f, 8f), k(0.65f, 26f), k(0.85f, 6f), k(1.00f, 2f),
+                k(0.00f, 42f), k(0.12f, 48f), k(0.25f, 20f), k(0.38f, 6f), k(0.50f, 8f),
+                k(0.62f, 22f), k(0.75f, 14f), k(0.88f, 26f), k(1.00f, 42f),
             ),
             track(
                 BoneIds.FOOT_R,
-                k(0.00f, -12f), k(0.25f, 6f), k(0.50f, 8f), k(0.75f, 0f), k(1.00f, -12f),
+                k(0.00f, -10f), k(0.12f, -14f), k(0.25f, -6f), k(0.38f, 16f), k(0.50f, 17f),
+                k(0.62f, -8f), k(0.75f, -11f), k(0.88f, -30f), k(1.00f, -10f),
             ),
-            track(BoneIds.UPPER_ARM_L, k(0.00f, 24f), k(0.50f, -24f), k(1.00f, 24f)),
-            track(BoneIds.FOREARM_L, k(0.00f, 14f), k(0.50f, 22f), k(1.00f, 14f)),
-            track(BoneIds.HAND_L, k(0.00f, 4f), k(0.50f, 8f), k(1.00f, 4f)),
-            track(BoneIds.UPPER_ARM_R, k(0.00f, -24f), k(0.50f, 24f), k(1.00f, -24f)),
-            track(BoneIds.FOREARM_R, k(0.00f, -22f), k(0.50f, -14f), k(1.00f, -22f)),
-            track(BoneIds.HAND_R, k(0.00f, -4f), k(0.50f, -8f), k(1.00f, -4f)),
+            // V5 §11: contralateral arms; the elbow peaks ~6% after the shoulder and the hand
+            // follows another few percent later (overlap, not lockstep).
+            track(BoneIds.UPPER_ARM_L, k(0.00f, 24f), k(0.25f, 10f), k(0.50f, -24f), k(0.75f, -10f), k(1.00f, 24f)),
+            track(BoneIds.FOREARM_L, k(0.00f, 14f), k(0.30f, 20f), k(0.56f, 24f), k(0.80f, 20f), k(1.00f, 14f)),
+            track(BoneIds.HAND_L, k(0.00f, 4f), k(0.34f, 8f), k(0.60f, 9f), k(1.00f, 4f)),
+            track(BoneIds.UPPER_ARM_R, k(0.00f, -24f), k(0.25f, -10f), k(0.50f, 24f), k(0.75f, 10f), k(1.00f, -24f)),
+            track(BoneIds.FOREARM_R, k(0.00f, -14f), k(0.30f, -20f), k(0.56f, -24f), k(0.80f, -20f), k(1.00f, -14f)),
+            track(BoneIds.HAND_R, k(0.00f, -4f), k(0.34f, -8f), k(0.60f, -9f), k(1.00f, -4f)),
         ),
         mouth = MouthShape.CLOSED,
     )
@@ -222,30 +269,47 @@ object AnimationLibrary {
         tracks = mapOf(
             track(BoneIds.TORSO, k(0f, 8f), k(0.5f, 9f), k(1f, 8f)),
             track(BoneIds.HEAD, k(0.00f, -8f), k(0.50f, -10f), k(1.00f, -8f)),
+            // V5 §16: contact → compression → push → flight. The foot is flat through the
+            // short contact window, folds high under the body during flight recovery, and
+            // reaches for the next stride with a dorsiflexed heel.
             track(
                 BoneIds.THIGH_L,
-                k(0.00f, -48f), k(0.25f, -8f), k(0.50f, 38f), k(0.75f, 6f), k(1.00f, -48f),
+                k(0.00f, -48f), k(0.10f, -34f), k(0.22f, -6f), k(0.35f, 30f), k(0.50f, 38f),
+                k(0.62f, 12f), k(0.75f, -20f), k(0.88f, -40f), k(1.00f, -48f),
             ),
             track(
                 BoneIds.SHIN_L,
-                k(0.00f, 26f), k(0.18f, 70f), k(0.40f, 8f), k(0.55f, 4f), k(0.78f, 96f), k(1.00f, 26f),
+                k(0.00f, 26f), k(0.10f, 52f), k(0.22f, 34f), k(0.35f, 78f), k(0.50f, 20f),
+                k(0.62f, 60f), k(0.75f, 30f), k(0.88f, 22f), k(1.00f, 26f),
             ),
-            track(BoneIds.FOOT_L, k(0.00f, 12f), k(0.50f, -18f), k(1.00f, 12f)),
+            track(
+                BoneIds.FOOT_L,
+                k(0.00f, 24f), k(0.10f, -14f), k(0.22f, -30f), k(0.35f, -8f), k(0.50f, 14f),
+                k(0.62f, -8f), k(0.75f, -8f), k(0.88f, 16f), k(1.00f, 24f),
+            ),
             track(
                 BoneIds.THIGH_R,
-                k(0.00f, 38f), k(0.25f, 6f), k(0.50f, -48f), k(0.75f, -8f), k(1.00f, 38f),
+                k(0.00f, 38f), k(0.10f, 12f), k(0.25f, -20f), k(0.38f, -40f), k(0.50f, -48f),
+                k(0.60f, -34f), k(0.72f, -6f), k(0.85f, 30f), k(1.00f, 38f),
             ),
             track(
                 BoneIds.SHIN_R,
-                k(0.00f, 4f), k(0.28f, 96f), k(0.50f, 26f), k(0.68f, 70f), k(0.90f, 8f), k(1.00f, 4f),
+                k(0.00f, 20f), k(0.10f, 60f), k(0.25f, 30f), k(0.38f, 22f), k(0.50f, 26f),
+                k(0.60f, 52f), k(0.72f, 34f), k(0.85f, 78f), k(1.00f, 20f),
             ),
-            track(BoneIds.FOOT_R, k(0.00f, -18f), k(0.50f, 12f), k(1.00f, -18f)),
-            track(BoneIds.UPPER_ARM_L, k(0.00f, 52f), k(0.50f, -46f), k(1.00f, 52f)),
-            track(BoneIds.FOREARM_L, k(0.00f, 62f), k(0.50f, 78f), k(1.00f, 62f)),
-            track(BoneIds.HAND_L, k(0.00f, 10f), k(0.50f, 16f), k(1.00f, 10f)),
-            track(BoneIds.UPPER_ARM_R, k(0.00f, -46f), k(0.50f, 52f), k(1.00f, -46f)),
-            track(BoneIds.FOREARM_R, k(0.00f, -78f), k(0.50f, -62f), k(1.00f, -78f)),
-            track(BoneIds.HAND_R, k(0.00f, -16f), k(0.50f, -10f), k(1.00f, -16f)),
+            track(
+                BoneIds.FOOT_R,
+                k(0.00f, 14f), k(0.10f, -8f), k(0.25f, -8f), k(0.38f, 16f), k(0.50f, 24f),
+                k(0.60f, -14f), k(0.72f, -30f), k(0.85f, -8f), k(1.00f, 14f),
+            ),
+            // V5 §17: strong arm punch with the elbow cracking slightly AFTER the shoulder
+            // reverses, and the hands whipping last.
+            track(BoneIds.UPPER_ARM_L, k(0.00f, 52f), k(0.25f, 10f), k(0.50f, -46f), k(0.75f, -12f), k(1.00f, 52f)),
+            track(BoneIds.FOREARM_L, k(0.00f, 62f), k(0.30f, 74f), k(0.56f, 80f), k(0.80f, 70f), k(1.00f, 62f)),
+            track(BoneIds.HAND_L, k(0.00f, 10f), k(0.36f, 18f), k(0.62f, 16f), k(1.00f, 10f)),
+            track(BoneIds.UPPER_ARM_R, k(0.00f, -46f), k(0.25f, -12f), k(0.50f, 52f), k(0.75f, 10f), k(1.00f, -46f)),
+            track(BoneIds.FOREARM_R, k(0.00f, -80f), k(0.30f, -70f), k(0.56f, -74f), k(0.80f, -62f), k(1.00f, -80f)),
+            track(BoneIds.HAND_R, k(0.00f, -16f), k(0.36f, -18f), k(0.62f, -16f), k(1.00f, -16f)),
         ),
         mouth = MouthShape.CLOSED,
     )
@@ -509,24 +573,38 @@ object AnimationLibrary {
                 k(0.00f, -1.5f), k(0.15f, -5f), k(0.35f, 2f), k(0.55f, -4f),
                 k(0.75f, 1f), k(1.00f, -1.5f),
             ),
+            // V5 §33: the same flat-footed eight-phase legs as Walk (see WALK), so dialogue
+            // never destroys locomotion balance; the face layers run on top independently.
             track(
                 BoneIds.THIGH_L,
-                k(0.00f, -24f), k(0.25f, -5f), k(0.50f, 20f), k(0.75f, 3f), k(1.00f, -24f),
+                k(0.00f, -24f), k(0.12f, -14f), k(0.25f, -2f), k(0.38f, 11f), k(0.50f, 20f),
+                k(0.62f, 7f), k(0.75f, -7f), k(0.88f, -18f), k(1.00f, -24f),
             ),
             track(
                 BoneIds.SHIN_L,
-                k(0.00f, 8f), k(0.15f, 24f), k(0.35f, 6f), k(0.50f, 2f), k(0.70f, 40f), k(1.00f, 8f),
+                k(0.00f, 8f), k(0.12f, 20f), k(0.25f, 13f), k(0.38f, 24f), k(0.50f, 38f),
+                k(0.62f, 44f), k(0.75f, 18f), k(0.88f, 6f), k(1.00f, 8f),
             ),
-            track(BoneIds.FOOT_L, k(0.00f, 8f), k(0.25f, 0f), k(0.50f, -12f), k(1.00f, 8f)),
+            track(
+                BoneIds.FOOT_L,
+                k(0.00f, 15f), k(0.12f, -7f), k(0.25f, -10f), k(0.38f, -28f), k(0.50f, -9f),
+                k(0.62f, -13f), k(0.75f, -5f), k(0.88f, 14f), k(1.00f, 15f),
+            ),
             track(
                 BoneIds.THIGH_R,
-                k(0.00f, 20f), k(0.25f, 3f), k(0.50f, -24f), k(0.75f, -5f), k(1.00f, 20f),
+                k(0.00f, 20f), k(0.12f, 7f), k(0.25f, -7f), k(0.38f, -18f), k(0.50f, -24f),
+                k(0.62f, -14f), k(0.75f, -2f), k(0.88f, 11f), k(1.00f, 20f),
             ),
             track(
                 BoneIds.SHIN_R,
-                k(0.00f, 2f), k(0.20f, 40f), k(0.50f, 8f), k(0.65f, 24f), k(0.85f, 6f), k(1.00f, 2f),
+                k(0.00f, 38f), k(0.12f, 44f), k(0.25f, 18f), k(0.38f, 6f), k(0.50f, 8f),
+                k(0.62f, 20f), k(0.75f, 13f), k(0.88f, 24f), k(1.00f, 38f),
             ),
-            track(BoneIds.FOOT_R, k(0.00f, -12f), k(0.25f, 6f), k(0.50f, 8f), k(1.00f, -12f)),
+            track(
+                BoneIds.FOOT_R,
+                k(0.00f, -9f), k(0.12f, -13f), k(0.25f, -5f), k(0.38f, 14f), k(0.50f, 15f),
+                k(0.62f, -7f), k(0.75f, -10f), k(0.88f, -28f), k(1.00f, -9f),
+            ),
             // Talking arms: smaller swing than a plain walk, elbows folded in.
             track(BoneIds.UPPER_ARM_L, k(0.00f, 10f), k(0.30f, -12f), k(0.60f, -6f), k(1.00f, 10f)),
             track(BoneIds.FOREARM_L, k(0.00f, -26f), k(0.30f, -40f), k(0.60f, -30f), k(1.00f, -26f)),
@@ -560,24 +638,39 @@ object AnimationLibrary {
         tracks = mapOf(
             track(BoneIds.TORSO, k(0.00f, 4f), k(0.50f, 6f), k(1.00f, 4f)),
             track(BoneIds.HEAD, k(0.00f, -2f), k(0.50f, -4f), k(1.00f, -2f)),
+            // V5 §34/§35: the profile cycle uses the same eight-phase mechanics; the trailing
+            // (screen-right) leg contacts at t=0, the leading leg half a cycle later, and each
+            // foot stays flat on the ground for its whole plant window.
             track(
                 BoneIds.THIGH_R,
-                k(0.00f, -34f), k(0.25f, -5f), k(0.50f, 30f), k(0.75f, -8f), k(1.00f, -34f),
+                k(0.00f, -34f), k(0.12f, -20f), k(0.25f, -3f), k(0.38f, 14f), k(0.50f, 26f),
+                k(0.62f, 10f), k(0.75f, -10f), k(0.88f, -26f), k(1.00f, -34f),
             ),
             track(
                 BoneIds.SHIN_R,
-                k(0.00f, 20f), k(0.25f, 5f), k(0.50f, 10f), k(0.70f, 60f), k(0.90f, 26f), k(1.00f, 20f),
+                k(0.00f, 14f), k(0.12f, 26f), k(0.25f, 16f), k(0.38f, 30f), k(0.50f, 48f),
+                k(0.62f, 54f), k(0.75f, 24f), k(0.88f, 10f), k(1.00f, 14f),
             ),
-            track(BoneIds.FOOT_R, k(0.00f, -10f), k(0.30f, 6f), k(0.60f, -6f), k(1.00f, -10f)),
+            track(
+                BoneIds.FOOT_R,
+                k(0.00f, 19f), k(0.12f, -6f), k(0.25f, -12f), k(0.38f, -32f), k(0.50f, -10f),
+                k(0.62f, -14f), k(0.75f, -4f), k(0.88f, 14f), k(1.00f, 19f),
+            ),
             track(
                 BoneIds.THIGH_L,
-                k(0.00f, 30f), k(0.25f, -8f), k(0.50f, -34f), k(0.75f, -5f), k(1.00f, 30f),
+                k(0.00f, 26f), k(0.12f, 10f), k(0.25f, -10f), k(0.38f, -26f), k(0.50f, -34f),
+                k(0.62f, -20f), k(0.75f, -3f), k(0.88f, 14f), k(1.00f, 26f),
             ),
             track(
                 BoneIds.SHIN_L,
-                k(0.00f, 10f), k(0.20f, 60f), k(0.45f, 20f), k(0.70f, 5f), k(0.85f, 45f), k(1.00f, 10f),
+                k(0.00f, 48f), k(0.12f, 54f), k(0.25f, 24f), k(0.38f, 10f), k(0.50f, 14f),
+                k(0.62f, 26f), k(0.75f, 16f), k(0.88f, 30f), k(1.00f, 48f),
             ),
-            track(BoneIds.FOOT_L, k(0.00f, 6f), k(0.35f, -10f), k(0.65f, 4f), k(1.00f, 6f)),
+            track(
+                BoneIds.FOOT_L,
+                k(0.00f, -10f), k(0.12f, -14f), k(0.25f, -4f), k(0.38f, 14f), k(0.50f, 19f),
+                k(0.62f, -6f), k(0.75f, -12f), k(0.88f, -32f), k(1.00f, -10f),
+            ),
             track(BoneIds.UPPER_ARM_R, k(0.00f, 26f), k(0.50f, -26f), k(1.00f, 26f)),
             track(BoneIds.FOREARM_R, k(0.00f, 30f), k(0.50f, 18f), k(1.00f, 30f)),
             track(BoneIds.HAND_R, k(0.00f, 4f), k(0.50f, -2f), k(1.00f, 4f)),
@@ -611,24 +704,38 @@ object AnimationLibrary {
         tracks = mapOf(
             track(BoneIds.TORSO, k(0.00f, 10f), k(0.50f, 12f), k(1.00f, 10f)),
             track(BoneIds.HEAD, k(0.00f, -8f), k(0.50f, -10f), k(1.00f, -8f)),
+            // V5 §36: strong profile stride — flat foot through contact, then a high fold
+            // under the body and a dorsiflexed reach into the next stride.
             track(
                 BoneIds.THIGH_R,
-                k(0.00f, -55f), k(0.25f, -8f), k(0.50f, 42f), k(0.75f, -4f), k(1.00f, -55f),
+                k(0.00f, -55f), k(0.10f, -38f), k(0.22f, -8f), k(0.35f, 32f), k(0.50f, 44f),
+                k(0.62f, 14f), k(0.75f, -22f), k(0.88f, -44f), k(1.00f, -55f),
             ),
             track(
                 BoneIds.SHIN_R,
-                k(0.00f, 30f), k(0.22f, 8f), k(0.45f, 20f), k(0.68f, 100f), k(0.88f, 45f), k(1.00f, 30f),
+                k(0.00f, 30f), k(0.10f, 58f), k(0.22f, 38f), k(0.35f, 84f), k(0.50f, 24f),
+                k(0.62f, 66f), k(0.75f, 34f), k(0.88f, 26f), k(1.00f, 30f),
             ),
-            track(BoneIds.FOOT_R, k(0.00f, -14f), k(0.35f, 10f), k(0.65f, -10f), k(1.00f, -14f)),
+            track(
+                BoneIds.FOOT_R,
+                k(0.00f, 26f), k(0.10f, -16f), k(0.22f, -32f), k(0.35f, -8f), k(0.50f, 16f),
+                k(0.62f, -8f), k(0.75f, -6f), k(0.88f, 14f), k(1.00f, 26f),
+            ),
             track(
                 BoneIds.THIGH_L,
-                k(0.00f, 42f), k(0.25f, -4f), k(0.50f, -55f), k(0.75f, -8f), k(1.00f, 42f),
+                k(0.00f, 44f), k(0.10f, 14f), k(0.25f, -22f), k(0.38f, -44f), k(0.50f, -55f),
+                k(0.60f, -38f), k(0.72f, -8f), k(0.85f, 32f), k(1.00f, 44f),
             ),
             track(
                 BoneIds.SHIN_L,
-                k(0.00f, 20f), k(0.18f, 100f), k(0.42f, 30f), k(0.62f, 8f), k(0.85f, 45f), k(1.00f, 20f),
+                k(0.00f, 24f), k(0.10f, 66f), k(0.25f, 34f), k(0.38f, 26f), k(0.50f, 30f),
+                k(0.60f, 58f), k(0.72f, 38f), k(0.85f, 84f), k(1.00f, 24f),
             ),
-            track(BoneIds.FOOT_L, k(0.00f, 10f), k(0.30f, -14f), k(0.70f, 8f), k(1.00f, 10f)),
+            track(
+                BoneIds.FOOT_L,
+                k(0.00f, 16f), k(0.10f, -8f), k(0.25f, -6f), k(0.38f, 14f), k(0.50f, 26f),
+                k(0.60f, -16f), k(0.72f, -32f), k(0.85f, -8f), k(1.00f, 16f),
+            ),
             track(BoneIds.UPPER_ARM_R, k(0.00f, 48f), k(0.50f, -44f), k(1.00f, 48f)),
             track(BoneIds.FOREARM_R, k(0.00f, 60f), k(0.50f, 40f), k(1.00f, 60f)),
             track(BoneIds.UPPER_ARM_L, k(0.00f, -44f), k(0.50f, 48f), k(1.00f, -44f)),

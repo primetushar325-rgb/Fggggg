@@ -7,6 +7,7 @@ import android.util.AttributeSet
 import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.View
+import com.rigstudio.core.anim.AnimationEngine
 import com.rigstudio.core.anim.PlaybackClock
 import com.rigstudio.core.rig.Pose
 
@@ -35,8 +36,15 @@ class StageView @JvmOverloads constructor(
     var stageSource: StageSource? = null
         set(value) {
             if (field == value) return
+            // V5 §41: keep the outgoing stage for a short pose-space crossfade.
+            prepared?.let { outgoing ->
+                outgoingStage = outgoing
+                outgoingPlayhead = clock.normalizedTime
+                outgoingSwitchNanos = System.nanoTime()
+            }
             field = value
             prepare()
+            scheduleFrames()
             invalidate()
         }
 
@@ -93,6 +101,11 @@ class StageView @JvmOverloads constructor(
     private var prepared: PreparedStage? = null
     private var callbackPosted = false
     private var lastPublishMillis = 0L
+
+    // --- V5 crossfade state (clip-to-clip transitions) ---------------------------------------
+    private var outgoingStage: PreparedStage? = null
+    private var outgoingPlayhead = 0f
+    private var outgoingSwitchNanos = 0L
 
     init {
         // The view is interactive: pinch/drag/double-tap drive the user camera (V4 §32).
@@ -154,6 +167,23 @@ class StageView @JvmOverloads constructor(
             canvas.drawColor(FALLBACK_BACKGROUND)
             return
         }
+
+        // V5 §41: for ~220 ms after a clip switch, blend the outgoing clip (still advancing)
+        // into the new one in pose space — no snapping between animations, ever.
+        var pose = stage.samplePose(clock.normalizedTime)
+        val outgoing = outgoingStage
+        if (outgoing != null) {
+            val elapsed = (System.nanoTime() - outgoingSwitchNanos) / 1_000_000_000f
+            if (elapsed >= CROSSFADE_SECONDS) {
+                outgoingStage = null
+            } else {
+                val outgoingT = (outgoingPlayhead + elapsed / outgoing.cycleSeconds
+                    .coerceAtLeast(0.01f)).mod(1f)
+                val alpha = (elapsed / CROSSFADE_SECONDS).coerceIn(0f, 1f)
+                pose = AnimationEngine.blend(outgoing.samplePose(outgoingT), pose, alpha)
+            }
+        }
+
         val saveCount = canvas.save()
         if (userZoom != 1f || userPanX != 0f || userPanY != 0f) {
             // Screen-space camera on top of the solved framing (V4 §32). Pivot-scale so the
@@ -162,7 +192,8 @@ class StageView @JvmOverloads constructor(
             canvas.scale(userZoom, userZoom)
             canvas.translate(-width * 0.5f + userPanX, -height * 0.5f + userPanY)
         }
-        lastPose = stage.paintNormalized(canvas, clock.normalizedTime, drawChecker)
+        lastPose = pose
+        stage.paintPose(canvas, pose, drawChecker)
         canvas.restoreToCount(saveCount)
         if (debugOverlay) {
             drawDebugOverlay(canvas, stage)
@@ -388,6 +419,11 @@ class StageView @JvmOverloads constructor(
                 publishFrame(force = true)
                 onFinished?.invoke()
             }
+            // A crossfade still in flight must keep redrawing even while paused (V5 §41).
+            if (outgoingStage != null) {
+                invalidate()
+                scheduleFrames()
+            }
             return
         }
         scheduleFrames()
@@ -450,6 +486,9 @@ class StageView @JvmOverloads constructor(
 
         /** Painted when there is nothing to show yet. */
         const val FALLBACK_BACKGROUND = 0xFF12161C.toInt()
+
+        /** V5 §41: clip-to-clip crossfade length in seconds (150–300 ms window). */
+        const val CROSSFADE_SECONDS = AnimationEngine.DEFAULT_BLEND_SECONDS
 
         /** User camera limits (V4 §32): a screen-space zoom on top of the auto framing. */
         const val MIN_USER_ZOOM = 1f

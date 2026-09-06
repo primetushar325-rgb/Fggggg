@@ -39,7 +39,7 @@ step() {
     fi
 }
 
-step "core engine tests (169)" bash tools/run_core_tests.sh
+step "core engine tests (179)" bash tools/run_core_tests.sh
 step "core + app compile check (Android API stubs)" bash tools/check_app.sh
 step "dump slot geometry + solved layout" bash tools/dump_slots.sh
 step "render blank template PNG" python3 tools/render_template.py

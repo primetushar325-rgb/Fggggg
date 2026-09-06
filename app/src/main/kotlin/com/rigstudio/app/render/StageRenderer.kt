@@ -3,6 +3,8 @@ package com.rigstudio.app.render
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import com.rigstudio.core.anim.AnimationClip
+import com.rigstudio.core.anim.AnimationEngine
+import com.rigstudio.core.anim.EvaluateOptions
 import com.rigstudio.core.model.Expression
 import com.rigstudio.core.model.MouthShape
 import com.rigstudio.core.render.Camera
@@ -31,6 +33,8 @@ data class StageSource(
     val background: StageBackground = StageBackground.DEFAULT,
     val expressionOverride: Expression? = null,
     val mouthOverride: MouthShape? = null,
+    /** V5 layer switches for [AnimationEngine.evaluate]; defaults enable the full layer stack. */
+    val animation: EvaluateOptions = EvaluateOptions(),
 )
 
 /**
@@ -61,11 +65,22 @@ class PreparedStage internal constructor(
      */
     fun paintNormalized(canvas: Canvas, time01: Float, drawChecker: Boolean = false): Pose {
         val pose = resolvePose(time01)
+        paintPose(canvas, pose, drawChecker)
+        return pose
+    }
+
+    /**
+     * Draws an externally prepared pose (V5 §41: the view crossfades the previous clip into the
+     * new one by blending poses and painting the result through the exact same path).
+     */
+    fun paintPose(canvas: Canvas, pose: Pose, drawChecker: Boolean = false) {
         val draws = PuppetComposer.compose(source.rig, pose, camera.transform)
         painter.paint(canvas, width, height, draws, source.bitmaps, source.background, drawChecker)
         _lastDraws = draws
-        return pose
     }
+
+    /** Samples the layered animation at normalised time without painting (for blending). */
+    fun samplePose(time01: Float): Pose = resolvePose(time01)
 
     /**
      * The draw list of the most recently painted frame, in paint (z) order. The debug overlay
@@ -99,7 +114,8 @@ class PreparedStage internal constructor(
     }
 
     private fun resolvePose(time01: Float): Pose {
-        val pose = clip.sample(time01)
+        // V5: every consumer (preview, thumbnails, export) samples through the layer engine.
+        val pose = AnimationEngine.evaluate(clip, time01, source.animation)
         val expression = source.expressionOverride
         val mouth = source.mouthOverride
         return if (expression == null && mouth == null) {

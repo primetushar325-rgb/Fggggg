@@ -233,6 +233,13 @@ fun EditorScreen(
                 onStop = viewModel::stop,
                 onLoopToggle = { viewModel.setLooping(!state.looping) },
                 onScrub = viewModel::seek,
+                keyTimes = remember(state.clip) {
+                    state.clip?.let { clip ->
+                        (clip.tracks.values.flatMap { track -> track.keys.map { it.time } } +
+                            clip.rootTrack?.keys?.map { it.time }.orEmpty())
+                            .distinct().sorted()
+                    }.orEmpty()
+                },
             )
 
             Column(
@@ -415,6 +422,7 @@ private fun TransportBar(
     onStop: () -> Unit,
     onLoopToggle: () -> Unit,
     onScrub: (Float) -> Unit,
+    keyTimes: List<Float> = emptyList(),
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Row(
@@ -458,6 +466,7 @@ private fun TransportBar(
             cycleSeconds = cycleSeconds,
             enabled = enabled,
             onScrub = onScrub,
+            keyTimes = keyTimes,
         )
     }
 }
@@ -473,6 +482,7 @@ private fun ZoomableTimeline(
     cycleSeconds: Float,
     enabled: Boolean,
     onScrub: (Float) -> Unit,
+    keyTimes: List<Float> = emptyList(),
 ) {
     var zoom by remember { mutableFloatStateOf(1f) }
     val scroll = rememberScrollState()
@@ -530,6 +540,18 @@ private fun ZoomableTimeline(
                             strokeWidth = if (major) 3f else 2f,
                         )
                         minor++
+                    }
+
+                    // V5 §46: authored keyframes as diamonds under the ruler.
+                    val keyColor = RigColors.Secondary.copy(alpha = 0.9f)
+                    for (keyTime in keyTimes) {
+                        val kx = keyTime.coerceIn(0f, 1f) * widthPx
+                        val ky = heightPx * 0.88f
+                        val r = 4.5f
+                        drawLine(keyColor, Offset(kx - r, ky), Offset(kx, ky - r), strokeWidth = 2f)
+                        drawLine(keyColor, Offset(kx, ky - r), Offset(kx + r, ky), strokeWidth = 2f)
+                        drawLine(keyColor, Offset(kx + r, ky), Offset(kx, ky + r), strokeWidth = 2f)
+                        drawLine(keyColor, Offset(kx, ky + r), Offset(kx - r, ky), strokeWidth = 2f)
                     }
 
                     // Playhead.

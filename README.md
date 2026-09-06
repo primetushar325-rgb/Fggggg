@@ -1,5 +1,14 @@
 # RigStudio V4 — draw a sheet, get a rigged, animated character (native Android)
 
+> **V5 animation overhaul** (on top of V4): a layered **animation engine**
+> (`AnimationEngine` + `BlinkScheduler`) — delayed head/hand follow-through, quiet procedural
+> breathing on idle-class clips, deterministic varied blinking, and **220 ms pose-space
+> crossfades** on every clip switch; rebuilt **8-phase walk / run / side cycles** whose feet stay
+> **flat while planted** (contact windows are unit-tested against a foot-flat invariant), arms
+> with staggered shoulder/elbow/hand peaks; **gesture clips auto-return** to the previous base
+> animation (Walk → Wave → Walk); and the timeline now shows the authored **keyframes** as
+> diamonds. Preview and export both sample through the same engine, so they cannot drift.
+>
 > **V4 overhaul** (on top of V3's engine): editor **Undo/Redo**, a **Settings** screen with
 > user-level export defaults (720p/1080p · 24/30/60 fps), **loop-by-default**, a hidden
 > **developer debug overlay** (sprite bounds, pivots, z-order badges, FPS — unlock by tapping
@@ -62,7 +71,7 @@ and dynamic z-order (e.g. legs swap in front of / behind the torso while walking
 
 | Path | What it is |
 | --- | --- |
-| `core/` | Pure Kotlin engine: template geometry, extraction, rig, animation, draw-lists, export models, JSON, project persistence. No Android dependencies; 169 unit tests. |
+| `core/` | Pure Kotlin engine: template geometry, extraction, rig, animation, draw-lists, export models, JSON, project persistence. No Android dependencies; 179 unit tests. |
 | `app/` | Native Android app: Compose UI, ViewModels, Canvas stage renderer, `MediaCodec` MP4 writer, project storage, template & sample-character art. |
 | `tools/` | Offline verification: slot/layout dumpers, reference PNG renderer, sheet checker, synthetic-sheet painter, one-command `verify_all.sh`. |
 | `docs/assets/` | The rendered blank character sheet (generated, committed for review & CI drift checks). |
@@ -109,7 +118,7 @@ bash tools/verify_all.sh --drift  # + fail if committed sheet artefacts are stal
 
 | Step | Proves |
 | --- | --- |
-| `run_core_tests.sh` | 169 engine tests: template, layout, extraction, rig, draw-lists, animation, playback, export, persistence |
+| `run_core_tests.sh` | 179 engine tests: template, layout, extraction, rig, draw-lists, animation, playback, export, persistence |
 | `check_app.sh` | `:core` and all non-Compose `:app` sources compile against `tools/android-stubs` (mirrored Android API) |
 | `dump_slots.sh` | Slot geometry (`slots.json`) and the solved guide-ink layout (`layout.json`) straight from the Kotlin template |
 | `render_template.py` | Reference render of the blank sheet from `layout.json` (5×7 bitmap font, no deps) |
