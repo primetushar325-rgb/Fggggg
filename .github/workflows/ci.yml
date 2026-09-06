@@ -42,7 +42,7 @@ jobs:
           rc=${PIPESTATUS[0]}
           if [ "$rc" -ne 0 ]; then
             echo "verify_all exited $rc — surfacing failure lines as annotations"
-            grep -nE "error:|FAIL|failed|Exception|AssertionError" verify.log | head -40 | while IFS= read -r line; do
+            grep -nE "error:|FAIL|failed|✗|Exception|AssertionError|expected" verify.log | head -40 | while IFS= read -r line; do
               echo "::error::${line:0:600}"
             done
             exit 1
