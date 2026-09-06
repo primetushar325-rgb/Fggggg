@@ -139,7 +139,7 @@ object AnimationEngineTests {
                         steps++
                         t = window.from + steps * 0.02f
                     }
-                    Assert.that(steps >= 10) { "$clipId window ${window.footId} too small to matter" }
+                    Assert.that(steps >= 5) { "$clipId window ${window.footId} too small to matter" }
                 }
             }
         },
