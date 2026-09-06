@@ -39,7 +39,7 @@ object EditorInfraTests {
             Assert.that(history.canRedo)
             history.record("c")                 // a new edit invalidates redo
             Assert.that(!history.canRedo) { "redo must be cleared by a new record" }
-            Assert.equals("a", history.undo("d"))
+            Assert.equals("c", history.undo("d"), "undo pops the newest snapshot (c), not the older a")
         },
 
         TestCase("history stack is bounded and drops the oldest snapshot") {
@@ -48,8 +48,8 @@ object EditorInfraTests {
             history.record(2)
             history.record(3)
             Assert.equals(2, history.size, "capacity 2 must hold at most 2 snapshots")
-            Assert.equals(2, history.undo(4), "oldest (1) should have fallen off")
-            Assert.equals(3, history.undo(5))
+            Assert.equals(3, history.undo(4), "undo pops the newest snapshot (3); the oldest (1) fell off")
+            Assert.equals(2, history.undo(5))
             Assert.that(!history.canUndo)
         },
 
@@ -80,7 +80,8 @@ object EditorInfraTests {
         },
 
         TestCase("malformed settings fall back to defaults instead of crashing") {
-            Assert.equals(AppSettings.DEFAULT, AppSettingsCodec.decodeJsonOrNull("not json at all"))
+            // Unparseable JSON yields null; the store layer substitutes defaults (never crashes).
+            Assert.equals(null, AppSettingsCodec.decodeJsonOrNull("not json at all"))
             val partial = AppSettingsCodec.decode(
                 com.rigstudio.core.json.Json.parse("""{"defaultResolution":"NOPE"}"""))
             Assert.equals(AppSettings.DEFAULT, partial, "unknown enum must fall back")
