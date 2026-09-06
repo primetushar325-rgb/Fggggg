@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,6 +82,7 @@ fun HomeScreen(
     onOpenCharacter: (String) -> Unit,
     onImportSheet: () -> Unit,
     onOpenTemplate: () -> Unit,
+    onOpenSettings: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -114,6 +116,11 @@ fun HomeScreen(
                     state.loading -> "Reading library…"
                     state.cards.isEmpty() -> "Nothing saved on this device yet"
                     else -> "${state.cards.size} character${if (state.cards.size == 1) "" else "s"} · ${state.storageLabel} on device"
+                },
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    }
                 },
             )
         },

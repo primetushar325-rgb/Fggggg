@@ -20,6 +20,7 @@ import com.rigstudio.core.export.ExportFormat
 import com.rigstudio.core.export.ExportFrameRate
 import com.rigstudio.core.export.ExportLimits
 import com.rigstudio.core.export.ExportResolution
+import com.rigstudio.core.model.asExportSeed
 import com.rigstudio.core.export.ExportSettings
 import com.rigstudio.core.export.ExportValidationIssue
 import com.rigstudio.core.model.ViewKind
@@ -136,7 +137,8 @@ class ExportViewModel(private val app: RigStudioApplication) : ViewModel() {
     }
 
     private fun seedSettings(seed: ExportSettings?, view: ViewKind, clipId: String): ExportSettings =
-        (seed ?: ExportSettings.DEFAULT).copy(
+        // No editor state carried over: start from the user's saved defaults (V4 §38/§49).
+        (seed ?: app.settingsStore.load().asExportSeed()).copy(
             view = view,
             clipId = clipId,
             durationSeconds = (seed?.durationSeconds ?: defaultDurationFor(clipId))

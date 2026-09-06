@@ -8,6 +8,7 @@ import com.rigstudio.core.model.MouthShape
 import com.rigstudio.core.render.Camera
 import com.rigstudio.core.render.Framing
 import com.rigstudio.core.render.PuppetComposer
+import com.rigstudio.core.render.PuppetDraw
 import com.rigstudio.core.rig.CharacterRig
 import com.rigstudio.core.rig.Pose
 
@@ -62,8 +63,17 @@ class PreparedStage internal constructor(
         val pose = resolvePose(time01)
         val draws = PuppetComposer.compose(source.rig, pose, camera.transform)
         painter.paint(canvas, width, height, draws, source.bitmaps, source.background, drawChecker)
+        _lastDraws = draws
         return pose
     }
+
+    /**
+     * The draw list of the most recently painted frame, in paint (z) order. The debug overlay
+     * (V4 §52) reads this to outline sprite bounds and badge the z-order; normal rendering
+     * never touches it.
+     */
+    val lastDraws: List<PuppetDraw> get() = _lastDraws
+    private var _lastDraws: List<PuppetDraw> = emptyList()
 
     /** Draws one frame from a wall-clock time in seconds, at [speed]. */
     fun paintSeconds(canvas: Canvas, timeSeconds: Float, speed: Float, drawChecker: Boolean = false): Pose =

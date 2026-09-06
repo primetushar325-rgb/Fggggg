@@ -17,7 +17,9 @@ import com.rigstudio.app.editor.TemplateViewModel
 import com.rigstudio.app.ui.editor.EditorScreen
 import com.rigstudio.app.ui.export.ExportScreen
 import com.rigstudio.app.ui.home.HomeScreen
+import com.rigstudio.app.editor.SettingsViewModel
 import com.rigstudio.app.ui.import.ImportScreen
+import com.rigstudio.app.ui.settings.SettingsScreen
 import com.rigstudio.app.ui.template.TemplateScreen
 import com.rigstudio.core.export.ExportSettings
 
@@ -28,6 +30,7 @@ sealed interface Route {
     data object Template : Route
     data class Editor(val projectId: String) : Route
     data class Export(val projectId: String, val seed: ExportSettings?) : Route
+    data object Settings : Route
 }
 
 /**
@@ -73,6 +76,7 @@ fun RigStudioApp(initialSheetUri: Uri? = null) {
                 onOpenCharacter = { projectId -> push(Route.Editor(projectId)) },
                 onImportSheet = { push(Route.Import) },
                 onOpenTemplate = { push(Route.Template) },
+                onOpenSettings = { push(Route.Settings) },
             )
         }
 
@@ -109,6 +113,14 @@ fun RigStudioApp(initialSheetUri: Uri? = null) {
                 onBack = ::pop,
                 onExport = { push(Route.Export(route.projectId, editorViewModel.exportSeed())) },
                 onOpenTemplate = { push(Route.Template) },
+            )
+        }
+
+        Route.Settings -> {
+            val settingsViewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(app))
+            SettingsScreen(
+                viewModel = settingsViewModel,
+                onBack = ::pop,
             )
         }
 

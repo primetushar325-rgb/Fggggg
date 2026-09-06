@@ -1,4 +1,12 @@
-# RigStudio V3 — draw a sheet, get a rigged, animated character (native Android)
+# RigStudio V4 — draw a sheet, get a rigged, animated character (native Android)
+
+> **V4 overhaul** (on top of V3's engine): editor **Undo/Redo**, a **Settings** screen with
+> user-level export defaults (720p/1080p · 24/30/60 fps), **loop-by-default**, a hidden
+> **developer debug overlay** (sprite bounds, pivots, z-order badges, FPS — unlock by tapping
+> the version row seven times in Settings), **user camera** on the stage (pinch zoom, pan,
+> double-tap reset — screen-space only, never touches rig coordinates), a **zoomable timeline**
+> (pinch or ± buttons, 1×–6×, second/quarter-second ticks) with **stop** and **loop** transport
+> controls, and app-settings-seeded exports. Same offline guarantees: no permissions, no cloud.
 
 RigStudio turns **one 2048×2048 transparent PNG** — the *Character Sheet* — into a fully rigged 2D
 character that plays **18 built-in animations** and exports them as **MP4 video**, entirely on the
@@ -54,7 +62,7 @@ and dynamic z-order (e.g. legs swap in front of / behind the torso while walking
 
 | Path | What it is |
 | --- | --- |
-| `core/` | Pure Kotlin engine: template geometry, extraction, rig, animation, draw-lists, export models, JSON, project persistence. No Android dependencies; 161 unit tests. |
+| `core/` | Pure Kotlin engine: template geometry, extraction, rig, animation, draw-lists, export models, JSON, project persistence. No Android dependencies; 169 unit tests. |
 | `app/` | Native Android app: Compose UI, ViewModels, Canvas stage renderer, `MediaCodec` MP4 writer, project storage, template & sample-character art. |
 | `tools/` | Offline verification: slot/layout dumpers, reference PNG renderer, sheet checker, synthetic-sheet painter, one-command `verify_all.sh`. |
 | `docs/assets/` | The rendered blank character sheet (generated, committed for review & CI drift checks). |
@@ -101,7 +109,7 @@ bash tools/verify_all.sh --drift  # + fail if committed sheet artefacts are stal
 
 | Step | Proves |
 | --- | --- |
-| `run_core_tests.sh` | 161 engine tests: template, layout, extraction, rig, draw-lists, animation, playback, export, persistence |
+| `run_core_tests.sh` | 169 engine tests: template, layout, extraction, rig, draw-lists, animation, playback, export, persistence |
 | `check_app.sh` | `:core` and all non-Compose `:app` sources compile against `tools/android-stubs` (mirrored Android API) |
 | `dump_slots.sh` | Slot geometry (`slots.json`) and the solved guide-ink layout (`layout.json`) straight from the Kotlin template |
 | `render_template.py` | Reference render of the blank sheet from `layout.json` (5×7 bitmap font, no deps) |

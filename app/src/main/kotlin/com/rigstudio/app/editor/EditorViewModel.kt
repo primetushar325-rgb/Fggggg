@@ -20,6 +20,7 @@ import com.rigstudio.core.export.ExportSettings
 import com.rigstudio.core.model.Expression
 import com.rigstudio.core.model.MouthShape
 import com.rigstudio.core.model.ViewKind
+import com.rigstudio.core.util.HistoryStack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -43,6 +44,7 @@ sealed interface TransportAction {
     data object Play : TransportAction
     data object Pause : TransportAction
     data object Restart : TransportAction
+    data object Stop : TransportAction
     data class Seek(val normalizedTime: Float) : TransportAction
 }
 
@@ -84,6 +86,15 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
     val transport: StateFlow<TransportCommand?> = _transport.asStateFlow()
 
     private var transportSequence = 0L
+
+    /** V4 §28: bounded undo/redo over the editor's editable state. */
+    private val history = HistoryStack<EditorSnapshot>()
+
+    /** True while undo()/redo() re-applies a snapshot — setters must not record new steps then. */
+    private var restoringHistory = false
+
+    /** User-level defaults (V4 §49): loop-by-default and the hidden debug overlay. */
+    private val appSettings by lazy { app.settingsStore.load() }
 
     /** Loads a saved character and restores where the user left off. */
     fun load(projectId: String) {
@@ -145,11 +156,86 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
                     mouthShapes = project.availableMouthShapes,
                     background = background,
                     speed = project.lastSpeed,
-                    looping = startClip.loop,
+                    looping = startClip.loop && appSettings.loopByDefault,
+                    debugOverlay = appSettings.debugOverlays,
                 )
             }
             publishStage()
         }
+    }
+
+    // --- undo / redo (V4 §28) -----------------------------------------------------------------
+
+    /** The editable slice of the editor, as one immutable snapshot for the history stack. */
+    private data class EditorSnapshot(
+        val view: ViewKind,
+        val clipId: String?,
+        val expressionOverride: Expression?,
+        val mouthOverride: MouthShape?,
+        val background: StageBackground,
+        val showChecker: Boolean,
+        val speed: Float,
+        val looping: Boolean,
+    )
+
+    private fun snapshotOf(s: EditorState) = EditorSnapshot(
+        view = s.view,
+        clipId = s.clip?.id,
+        expressionOverride = s.expressionOverride,
+        mouthOverride = s.mouthOverride,
+        background = s.background,
+        showChecker = s.showChecker,
+        speed = s.speed,
+        looping = s.looping,
+    )
+
+    /** Files the current state as an undo step. Call before applying any user-driven mutation. */
+    private fun recordHistory() {
+        if (restoringHistory) return
+        history.record(snapshotOf(_state.value))
+        publishUndoAvailability()
+    }
+
+    private fun publishUndoAvailability() {
+        _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo) }
+    }
+
+    fun undo() {
+        if (restoringHistory) return
+        val restore = history.undo(snapshotOf(_state.value)) ?: return
+        restoringHistory = true
+        try {
+            applySnapshot(restore)
+        } finally {
+            restoringHistory = false
+            publishUndoAvailability()
+        }
+    }
+
+    fun redo() {
+        if (restoringHistory) return
+        val restore = history.redo(snapshotOf(_state.value)) ?: return
+        restoringHistory = true
+        try {
+            applySnapshot(restore)
+        } finally {
+            restoringHistory = false
+            publishUndoAvailability()
+        }
+    }
+
+    /** Re-runs the user's own setters so every side effect (stage, persist) happens as usual. */
+    private fun applySnapshot(snapshot: EditorSnapshot) {
+        selectView(snapshot.view)
+        snapshot.clipId?.let { selectClip(it) }
+        // selectClip clears overrides, so re-apply them after it.
+        setExpression(snapshot.expressionOverride)
+        setMouth(snapshot.mouthOverride)
+        applyBackground(snapshot.background)
+        setShowChecker(snapshot.showChecker)
+        setSpeed(snapshot.speed)
+        setLoopingInternal(snapshot.looping)
+        schedulePersist()
     }
 
     // --- view & clip selection ----------------------------------------------------------------
@@ -161,6 +247,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
             _state.update { it.copy(message = unavailableViewMessage(view)) }
             return
         }
+        recordHistory()
         val clips = character?.let { AnimationLibrary.playableIn(view, it.hasProfileArtwork) } ?: emptyList()
         val keepClip = current.clip?.takeIf { clip -> clip.id in clips.map { it.id } }
             ?: clips.firstOrNull()
@@ -197,6 +284,8 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
         }
         val required = clip.requiredView
         if (required != null && required in current.views) view = required
+        if (view == current.view && clip == current.clip) return
+        recordHistory()
 
         val clips = AnimationLibrary.playableIn(view, character.hasProfileArtwork)
         _state.update {
@@ -228,6 +317,12 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
 
     fun togglePlay() {
         if (_state.value.playing) pause() else play()
+    }
+
+    /** V4 §29 transport: stop = pause and rewind to the first frame. */
+    fun stop() {
+        _state.update { it.copy(playing = false, normalizedTime = 0f) }
+        postTransport(TransportAction.Stop)
     }
 
     fun restart() {
@@ -270,22 +365,43 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
 
     fun setSpeed(speed: Float) {
         val clamped = speed.coerceIn(ExportLimits.MIN_SPEED, ExportLimits.MAX_SPEED)
+        if (clamped == _state.value.speed) return
+        recordHistory()
         _state.update { it.copy(speed = clamped) }
         schedulePersist()
+    }
+
+    /** V4 §29: the timeline's loop toggle. */
+    fun setLooping(looping: Boolean) {
+        if (looping == _state.value.looping) return
+        recordHistory()
+        setLoopingInternal(looping)
+        schedulePersist()
+    }
+
+    private fun setLoopingInternal(looping: Boolean) {
+        _state.update { it.copy(looping = looping) }
     }
 
     // --- stage dressing ----------------------------------------------------------------------
 
     fun setSolidBackground(argb: Int) {
-        _state.update { it.copy(background = StageBackground.Solid(argb)) }
-        publishStage()
+        recordHistory()
+        applyBackground(StageBackground.Solid(argb))
         schedulePersist()
     }
 
     fun setTransparentBackground() {
-        _state.update { it.copy(background = StageBackground.Transparent, showChecker = true) }
-        publishStage()
+        recordHistory()
+        applyBackground(StageBackground.Transparent)
+        _state.update { it.copy(showChecker = true) }
         schedulePersist()
+    }
+
+    /** Sets the stage background without touching history (undo/redo call this directly). */
+    private fun applyBackground(background: StageBackground) {
+        _state.update { it.copy(background = background) }
+        publishStage()
     }
 
     fun setBackgroundImage(uri: Uri) {
@@ -301,12 +417,14 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
                 _state.update { it.copy(message = "That image could not be used as a background.") }
                 return@launch
             }
-            _state.update { it.copy(background = StageBackground.Image(bitmap)) }
-            publishStage()
+            recordHistory()
+            applyBackground(StageBackground.Image(bitmap))
         }
     }
 
     fun setShowChecker(show: Boolean) {
+        if (show == _state.value.showChecker) return
+        recordHistory()
         _state.update { it.copy(showChecker = show) }
     }
 
@@ -316,6 +434,8 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
             _state.update { it.copy(message = "This character sheet has no ${expression.displayName} eyes.") }
             return
         }
+        if (expression == _state.value.expressionOverride) return
+        recordHistory()
         _state.update { it.copy(expressionOverride = expression) }
         publishStage()
     }
@@ -326,6 +446,8 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
             _state.update { it.copy(message = "This character sheet has no ${shape.displayName} mouth.") }
             return
         }
+        if (shape == _state.value.mouthOverride) return
+        recordHistory()
         _state.update { it.copy(mouthOverride = shape) }
         publishStage()
     }

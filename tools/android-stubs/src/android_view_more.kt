@@ -25,6 +25,10 @@ open class View @JvmOverloads constructor(
     open fun postInvalidateOnAnimation() {}
     open fun removeCallbacks(action: Runnable): Boolean = true
 
+    open fun onTouchEvent(event: MotionEvent): Boolean = false
+    open fun performClick(): Boolean = false
+    open fun postDelayed(action: Runnable, delayMillis: Long): Boolean = false
+
     protected open fun onDraw(canvas: Canvas) {}
     protected open fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {}
     protected open fun onAttachedToWindow() {}

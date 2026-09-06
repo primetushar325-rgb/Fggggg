@@ -8,7 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +29,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
@@ -41,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,6 +61,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -74,7 +84,7 @@ import com.rigstudio.app.ui.components.FieldLabel
 import com.rigstudio.app.ui.components.RigChip
 import com.rigstudio.app.ui.components.RigPrimaryButton
 import com.rigstudio.app.ui.components.RigTextButton
-import com.rigstudio.app.ui.components.ScrubberBar
+import com.rigstudio.app.ui.components.RigChip
 import com.rigstudio.app.ui.components.RigTopBar
 import com.rigstudio.app.ui.components.SectionCard
 import com.rigstudio.app.ui.components.StatusPill
@@ -139,6 +149,21 @@ fun EditorScreen(
                     ?: "Loading character…",
                 onBack = onBack,
                 actions = {
+                    // V4 §28: Undo / Redo over every editor action (view, clip, face, stage).
+                    IconButton(onClick = viewModel::undo, enabled = state.canUndo) {
+                        Icon(
+                            Icons.Filled.KeyboardArrowLeft,
+                            contentDescription = "Undo",
+                            tint = if (state.canUndo) RigColors.Primary else RigColors.TextDisabled,
+                        )
+                    }
+                    IconButton(onClick = viewModel::redo, enabled = state.canRedo) {
+                        Icon(
+                            Icons.Filled.KeyboardArrowRight,
+                            contentDescription = "Redo",
+                            tint = if (state.canRedo) RigColors.Primary else RigColors.TextDisabled,
+                        )
+                    }
                     IconButton(onClick = onExport, enabled = state.loaded) {
                         Icon(
                             Icons.Filled.Share,
@@ -193,6 +218,7 @@ fun EditorScreen(
                 showChecker = state.showChecker,
                 speed = state.speed,
                 looping = state.looping,
+                debugOverlay = state.debugOverlay,
             )
 
             TransportBar(
@@ -204,6 +230,8 @@ fun EditorScreen(
                 enabled = state.loaded,
                 onToggle = viewModel::togglePlay,
                 onRestart = viewModel::restart,
+                onStop = viewModel::stop,
+                onLoopToggle = { viewModel.setLooping(!state.looping) },
                 onScrub = viewModel::seek,
             )
 
@@ -275,8 +303,10 @@ private fun StageArea(
     showChecker: Boolean,
     speed: Float,
     looping: Boolean,
+    debugOverlay: Boolean,
 ) {
     val lastClipId = remember { mutableStateOf<String?>(null) }
+    val stageRef = remember { mutableStateOf<StageView?>(null) }
 
     Box(
         Modifier
@@ -293,6 +323,8 @@ private fun StageArea(
                     drawChecker = showChecker
                     onFrame = { time, playing -> viewModel.onFrameReported(time, playing) }
                     onFinished = { viewModel.onPlaybackFinished() }
+                    onTap = { viewModel.togglePlay() }
+                    stageRef.value = this
                 }
             },
             update = { view ->
@@ -300,6 +332,7 @@ private fun StageArea(
                 view.drawChecker = showChecker
                 view.speed = speed
                 view.loop = looping
+                view.debugOverlay = debugOverlay
 
                 // A different clip: keep the proportional playhead instead of snapping to zero.
                 val clip = stageSource?.clip
@@ -312,13 +345,12 @@ private fun StageArea(
                     TransportAction.Play -> view.play()
                     TransportAction.Pause -> view.pause()
                     TransportAction.Restart -> view.restart()
+                    TransportAction.Stop -> view.stop()
                     is TransportAction.Seek -> view.normalizedTime = action.normalizedTime
                     null -> Unit
                 }
             },
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable { viewModel.togglePlay() },
+            modifier = Modifier.fillMaxSize(),
         )
 
         Row(
@@ -331,6 +363,25 @@ private fun StageArea(
             if (clipName != null) {
                 StatusPill(clipName, RigColors.Secondary)
             }
+        }
+
+        // V4 §32: reset the user camera back to the auto framing.
+        RigChip(
+            label = "Reset view",
+            selected = false,
+            onClick = { stageRef.value?.resetCamera() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(10.dp),
+        )
+        if (debugOverlay) {
+            StatusPill(
+                "DEBUG",
+                RigColors.Error,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(10.dp),
+            )
         }
 
         if (!loaded) {
@@ -361,6 +412,8 @@ private fun TransportBar(
     enabled: Boolean,
     onToggle: () -> Unit,
     onRestart: () -> Unit,
+    onStop: () -> Unit,
+    onLoopToggle: () -> Unit,
     onScrub: (Float) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -371,6 +424,9 @@ private fun TransportBar(
         ) {
             TransportButton(onClick = onRestart, enabled = enabled, label = stringResource(R.string.editor_restart)) {
                 Icon(Icons.Filled.Refresh, contentDescription = null, tint = RigColors.TextPrimary, modifier = Modifier.size(18.dp))
+            }
+            TransportButton(onClick = onStop, enabled = enabled, label = "Stop") {
+                Icon(Icons.Filled.Close, contentDescription = null, tint = RigColors.TextPrimary, modifier = Modifier.size(18.dp))
             }
             TransportButton(
                 onClick = onToggle,
@@ -394,13 +450,114 @@ private fun TransportBar(
                     color = RigColors.TextDisabled,
                 )
             }
+            RigChip(label = "Loop", selected = looping, onClick = onLoopToggle, enabled = enabled)
         }
         Spacer(Modifier.height(6.dp))
-        ScrubberBar(
+        ZoomableTimeline(
             normalizedTime = normalizedTime,
+            cycleSeconds = cycleSeconds,
+            enabled = enabled,
             onScrub = onScrub,
-            looping = looping,
         )
+    }
+}
+
+/**
+ * V4 §29: a timeline with a draggable playhead and real zoom (pinch or buttons, 1×–6×).
+ * Zoom spreads the ruler so single frames become draggable targets; the playhead stays
+ * synchronised with the stage because it reads the same [normalizedTime] the editor publishes.
+ */
+@Composable
+private fun ZoomableTimeline(
+    normalizedTime: Float,
+    cycleSeconds: Float,
+    enabled: Boolean,
+    onScrub: (Float) -> Unit,
+) {
+    var zoom by remember { mutableFloatStateOf(1f) }
+    val scroll = rememberScrollState()
+
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val trackWidth = maxWidth * zoom
+            Box(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
+                Canvas(
+                    Modifier
+                        .width(trackWidth)
+                        .height(44.dp)
+                        .pointerInput(enabled, zoom, cycleSeconds) {
+                            detectTapGestures { offset ->
+                                if (enabled && trackWidth.toPx() > 0f) {
+                                    onScrub((offset.x / trackWidth.toPx()).coerceIn(0f, 1f))
+                                }
+                            }
+                        }
+                        .pointerInput(enabled, zoom, cycleSeconds) {
+                            detectHorizontalDragGestures { change, _ ->
+                                if (enabled && trackWidth.toPx() > 0f) {
+                                    change.consume()
+                                    onScrub((change.position.x / trackWidth.toPx()).coerceIn(0f, 1f))
+                                }
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, _, scale, _ ->
+                                zoom = (zoom * scale).coerceIn(1f, 6f)
+                            }
+                        },
+                ) {
+                    val widthPx = size.width
+                    val heightPx = size.height
+                    val lineY = heightPx * 0.72f
+
+                    drawLine(RigColors.OutlineSoft, Offset(0f, lineY), Offset(widthPx, lineY), strokeWidth = 2f)
+
+                    // Second ticks (and quarter-second minors) that zoom reveals.
+                    val seconds = cycleSeconds.coerceAtLeast(0.01f)
+                    val pxPerSecond = widthPx / seconds
+                    var minor = 0
+                    while (minor * 0.25f <= seconds + 1e-4f) {
+                        val x = minor * 0.25f * pxPerSecond
+                        val major = minor % 4 == 0
+                        drawLine(
+                            if (major) RigColors.TextSecondary else RigColors.OutlineSoft,
+                            Offset(x, lineY),
+                            Offset(x, lineY - if (major) heightPx * 0.30f else heightPx * 0.14f),
+                            strokeWidth = if (major) 3f else 2f,
+                        )
+                        minor++
+                    }
+
+                    // Playhead.
+                    val playX = normalizedTime.coerceIn(0f, 1f) * widthPx
+                    drawLine(RigColors.Primary, Offset(playX, heightPx * 0.08f), Offset(playX, lineY), strokeWidth = 4f)
+                    drawCircle(RigColors.Primary, radius = 6f, center = Offset(playX, heightPx * 0.08f))
+                }
+            }
+        }
+        TransportButton(
+            onClick = { zoom = (zoom / 1.5f).coerceIn(1f, 6f) },
+            enabled = true,
+            label = "Zoom out",
+        ) {
+            Text("−", color = RigColors.TextPrimary, style = MaterialTheme.typography.titleMedium)
+        }
+        Text(
+            text = "%.1f×".format(zoom),
+            style = MaterialTheme.typography.labelSmall,
+            color = RigColors.TextSecondary,
+        )
+        TransportButton(
+            onClick = { zoom = (zoom * 1.5f).coerceIn(1f, 6f) },
+            enabled = true,
+            label = "Zoom in",
+        ) {
+            Text("+", color = RigColors.TextPrimary, style = MaterialTheme.typography.titleMedium)
+        }
     }
 }
 

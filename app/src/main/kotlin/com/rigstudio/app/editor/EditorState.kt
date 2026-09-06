@@ -39,6 +39,13 @@ data class EditorState(
     val showChecker: Boolean = true,
     val speed: Float = 1f,
 
+    /** V4 §28: the top bar's Undo / Redo buttons mirror these. */
+    val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
+
+    /** V4 §52: hidden developer overlays on the stage (bounds, pivots, z-order, FPS). */
+    val debugOverlay: Boolean = false,
+
     val playing: Boolean = false,
     val normalizedTime: Float = 0f,
     val looping: Boolean = true,

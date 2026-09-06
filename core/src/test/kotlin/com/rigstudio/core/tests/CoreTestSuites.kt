@@ -24,6 +24,7 @@ object CoreTestSuites {
         "Playback clock" to PlaybackTests.cases,
         "Export settings & file validation" to ExportTests.cases,
         "Project persistence" to ProjectTests.cases,
+        "Editor infrastructure (undo/redo, app settings)" to EditorInfraTests.cases,
     )
 
     val totalTests: Int get() = suites.sumOf { it.second.size }

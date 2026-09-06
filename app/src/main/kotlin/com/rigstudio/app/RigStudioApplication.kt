@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.rigstudio.core.template.CharacterSheetTemplate
 import com.rigstudio.app.data.ProjectStore
+import com.rigstudio.app.data.SettingsStore
 import com.rigstudio.app.export.ExportRunner
 import com.rigstudio.app.pipeline.SheetImporter
 import com.rigstudio.app.art.TemplateArt
@@ -19,6 +20,9 @@ import com.rigstudio.app.art.TemplateArt
 class RigStudioApplication : Application() {
 
     val store: ProjectStore by lazy { ProjectStore(this) }
+
+    /** User-level settings (export defaults, loop-by-default, hidden debug overlays). */
+    val settingsStore: SettingsStore by lazy { SettingsStore(this) }
 
     val importer: SheetImporter by lazy { SheetImporter(this, store) }
 
