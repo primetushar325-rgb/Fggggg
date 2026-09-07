@@ -76,6 +76,24 @@ object PuppetComposer {
     }
 
     /**
+     * Applies the project's manual z-order edits (V6 §26): a draw whose slot has an override is
+     * re-stamped and the list re-sorted, which is exactly how "bring forward / send backward /
+     * to front / to back" behaves. Overrides that collide keep the slot-id tiebreak, so the
+     * result is deterministic whatever the user does.
+     */
+    fun applyZOverrides(
+        draws: List<PuppetDraw>,
+        overrides: Map<String, Int>,
+    ): List<PuppetDraw> {
+        if (overrides.isEmpty()) return draws
+        val reZ = draws.map { draw ->
+            val override = overrides[draw.slotId]
+            if (override == null || override == draw.z) draw else draw.copy(z = override)
+        }
+        return reZ.sortedWith(compareBy({ it.z }, { it.slotId }))
+    }
+
+    /**
      * Eye and mouth overlays for the current pose.
      *
      * Anchors are fractions of the head's rest rectangle, so the face scales with whatever head

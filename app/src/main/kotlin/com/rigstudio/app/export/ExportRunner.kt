@@ -130,7 +130,13 @@ class ExportRunner(
         val resolver = store.bitmapResolver(character.project)
         // Same stage the editor draws with: identical camera, identical painter, identical draw list.
         val stage = StageRenderer.DEFAULT.prepare(
-            StageSource(rig = rig, clip = clip, bitmaps = resolver, background = background),
+            StageSource(
+                rig = rig,
+                clip = clip,
+                bitmaps = resolver,
+                background = background,
+                zOverrides = settings.zOrderOverrides,
+            ),
             settings.width,
             settings.height,
         )
@@ -291,7 +297,13 @@ class ExportRunner(
         val background = settings.effectiveBackground?.let { StageBackground.Solid(it) }
             ?: StageBackground.Transparent // real alpha: this is why PNG frames exist
         val stage = StageRenderer.DEFAULT.prepare(
-            StageSource(rig = rig, clip = clip, bitmaps = resolver, background = background),
+            StageSource(
+                rig = rig,
+                clip = clip,
+                bitmaps = resolver,
+                background = background,
+                zOverrides = settings.zOrderOverrides,
+            ),
             settings.width,
             settings.height,
         )

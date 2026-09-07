@@ -46,6 +46,24 @@ data class EditorState(
     /** V4 §52: hidden developer overlays on the stage (bounds, pivots, z-order, FPS). */
     val debugOverlay: Boolean = false,
 
+    // --- V6 pose editor (§10, §12, §47, §48) -------------------------------------------------
+    /** Pose Mode: single-finger drags drive IK on the limb handles instead of panning. */
+    val poseMode: Boolean = false,
+    /** True while a limb handle is being dragged. */
+    val draggingLimb: Boolean = false,
+    /** Poses the user saved for this character (built-ins live in [com.rigstudio.core.anim.PoseLibrary]). */
+    val userPoses: List<com.rigstudio.core.anim.PosePreset> = emptyList(),
+    /** User-authored animations for this character. */
+    val userClips: List<com.rigstudio.core.anim.UserClip> = emptyList(),
+    /** Keyframes of the custom animation being authored, in authoring order. */
+    val keyframes: List<com.rigstudio.core.anim.UserKeyframe> = emptyList(),
+    /** Copied pose for Paste (Reset/Mirror/Copy/Paste tools, V6 §10). */
+    val clipboardPose: com.rigstudio.core.anim.PosePreset? = null,
+    /** Manual z-order edits in effect (slot id → z). */
+    val zOrderOverrides: Map<String, Int> = emptyMap(),
+    /** Slot tapped on the stage in Pose Mode, target of the layer tools (V6 §26). */
+    val selectedSlotId: String? = null,
+
     val playing: Boolean = false,
     val normalizedTime: Float = 0f,
     val looping: Boolean = true,
@@ -99,6 +117,15 @@ data class EditorState(
 
 /** A clip that cannot play on the current character, with the sentence to show the user. */
 data class UnavailableClip(val clip: AnimationClip, val reason: String)
+
+/** The four manual layer moves of the z-order tools (V6 §26). */
+enum class LayerAction(val label: String) {
+    FRONT("Bring to front"),
+    FORWARD("Bring forward"),
+    BACKWARD("Send backward"),
+    BACK("Send to back"),
+    CLEAR("Reset layer"),
+}
 
 /**
  * A named background preset for the editor's background picker.

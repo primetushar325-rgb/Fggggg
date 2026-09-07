@@ -54,6 +54,20 @@ data class CharacterProject(
     val lastBackgroundArgb: Int?,
     val lastSpeed: Float,
     val templateVersion: Int = 1,
+    // --- V6 (schemaVersion 6) ---------------------------------------------------------------
+    /** Camera the stage was left at (1 = fit); preserved across view switches and reopens. */
+    val lastCameraZoom: Float = 1f,
+    val lastCameraPanX: Float = 0f,
+    val lastCameraPanY: Float = 0f,
+    /**
+     * Manual z-order edits: universal slot id → new z. Empty means the rig's authored order
+     * is untouched; entries only exist for parts the user actually moved.
+     */
+    val zOrderOverrides: Map<String, Int> = emptyMap(),
+    /** User-saved poses in this project (V6 §47), persisted beside the manifest. */
+    val posePresetIds: List<String> = emptyList(),
+    /** User-authored animation ids in this project (V6 §48). */
+    val userClipIds: List<String> = emptyList(),
 ) {
     fun spriteAssets(): Map<String, SpriteAsset> = sprites.associate { it.slotId to it.toAsset() }
 

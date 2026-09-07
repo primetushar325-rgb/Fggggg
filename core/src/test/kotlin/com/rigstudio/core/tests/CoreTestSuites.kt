@@ -26,6 +26,9 @@ object CoreTestSuites {
         "Project persistence" to ProjectTests.cases,
         "Editor infrastructure (undo/redo, app settings)" to EditorInfraTests.cases,
         "V5 animation engine (layers, blend, blink, foot-flat)" to AnimationEngineTests.cases,
+        "Two-bone IK solver" to TwoBoneIkTests.cases,
+        "User content (custom clips, pose library)" to UserContentTests.cases,
+        "Interactive pose editing (FK + IK)" to PoseEditingTests.cases,
     )
 
     val totalTests: Int get() = suites.sumOf { it.second.size }

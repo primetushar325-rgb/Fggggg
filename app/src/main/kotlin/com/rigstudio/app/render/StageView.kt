@@ -8,7 +8,10 @@ import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.View
 import com.rigstudio.core.anim.AnimationEngine
+import com.rigstudio.core.anim.IkChain
 import com.rigstudio.core.anim.PlaybackClock
+import com.rigstudio.core.anim.PoseEditing
+import com.rigstudio.core.geom.Vec2
 import com.rigstudio.core.rig.Pose
 
 /**
@@ -195,8 +198,56 @@ class StageView @JvmOverloads constructor(
         lastPose = pose
         stage.paintPose(canvas, pose, drawChecker)
         canvas.restoreToCount(saveCount)
+        if (poseMode) {
+            drawIkHandles(canvas, stage, pose)
+        }
         if (debugOverlay) {
             drawDebugOverlay(canvas, stage)
+            drawBonesAndIkOverlay(canvas, stage, pose)
+        }
+    }
+
+    // --- IK handles (V6 §10): draggable wrist/ankle markers shown while posing ----------------
+
+    private val handleFillPaint by lazy {
+        Paint().apply { color = 0xE63DDC84.toInt(); isAntiAlias = true }
+    }
+    private val handleStrokePaint by lazy {
+        Paint().apply {
+            color = 0xFF0B3D24.toInt(); style = Paint.Style.STROKE; strokeWidth = 3f; isAntiAlias = true
+        }
+    }
+    private val chainPaint by lazy {
+        Paint().apply {
+            color = 0x803DDC84.toInt(); style = Paint.Style.STROKE; strokeWidth = 4f; isAntiAlias = true
+        }
+    }
+
+    private fun drawIkHandles(canvas: Canvas, stage: PreparedStage, pose: Pose) {
+        for (chain in IkChain.ALL) {
+            val joints = PoseEditing.chainJoints(stage.source.rig, pose, chain) ?: continue
+            val root = viewToScreen(joints.root)
+            val mid = viewToScreen(joints.mid)
+            val end = viewToScreen(joints.end)
+            // Bone chain lines make the grabbed limb readable.
+            canvas.drawLine(root.x, root.y, mid.x, mid.y, chainPaint)
+            canvas.drawLine(mid.x, mid.y, end.x, end.y, chainPaint)
+            val radius = if (chain == activeIkChain) 20f else 14f
+            canvas.drawCircle(end.x, end.y, radius, handleFillPaint)
+            canvas.drawCircle(end.x, end.y, radius, handleStrokePaint)
+        }
+    }
+
+    /**
+     * Full anatomy overlay (V6 debug overlay, mandatory): every bone joint as a pivot dot, the
+     * four IK chains as connected segments, and per-bone bounds come from [drawDebugOverlay].
+     */
+    private fun drawBonesAndIkOverlay(canvas: Canvas, stage: PreparedStage, pose: Pose) {
+        val fk = com.rigstudio.core.rig.ForwardKinematics.solve(stage.source.rig, pose)
+        for (bone in stage.source.rig.bones) {
+            val joint = fk.transformOf(bone.id).transform(bone.joint)
+            val screen = viewToScreen(joint)
+            canvas.drawCircle(screen.x, screen.y, 4f, pivotPaint)
         }
     }
 
@@ -221,6 +272,22 @@ class StageView @JvmOverloads constructor(
         userPanX = 0f
         userPanY = 0f
         activePointerId = -1
+        onCameraChanged?.invoke(userZoom, userPanX, userPanY)
+        invalidate()
+    }
+
+    /**
+     * Fires when the user camera settles (end of a pinch/pan gesture or a reset), so the editor
+     * can persist the framing with the project and restore it across view switches and reopens.
+     */
+    var onCameraChanged: ((zoom: Float, panX: Float, panY: Float) -> Unit)? = null
+
+    /** Restores a persisted framing (project reopen) without triggering change callbacks. */
+    fun restoreCamera(zoom: Float, panX: Float, panY: Float) {
+        userZoom = zoom.coerceIn(MIN_USER_ZOOM, MAX_USER_ZOOM)
+        userPanX = panX
+        userPanY = panY
+        clampPan()
         invalidate()
     }
 
@@ -230,6 +297,102 @@ class StageView @JvmOverloads constructor(
             field = value
             invalidate()
         }
+
+    // --- pose editor gestures (V6 §10): drag = IK, pinch = zoom, two fingers = pan ------------
+
+    /**
+     * When true, a single-finger drag grabs the nearest limb handle and drives 2-bone IK instead
+     * of panning the camera (two fingers still pan; pinch still zooms).
+     */
+    var poseMode: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    /**
+     * An in-progress IK drag in view units (character height = 1): fired with `started = true`
+     * when a handle is grabbed, then on every move, then with `ended = true` on release.
+     */
+    var onPoseDrag: ((event: PoseDragEvent) -> Unit)? = null
+
+    /**
+     * A tap on the stage while in Pose Mode that did NOT grab a handle: selects the drawn part
+     * under the finger for the layer (z-order) tools, or clears the selection when it hits
+     * empty space.
+     */
+    var onPoseTap: ((slotId: String?) -> Unit)? = null
+
+    /** Radius (in view units) around a limb handle that counts as a grab. */
+    private val handleGrabRadius = 0.09f
+
+    private var activeIkChain: IkChain? = null
+
+    /** Screen pixels → view units through both the user camera and the stage camera. */
+    fun screenToView(x: Float, y: Float): Vec2? {
+        val stage = prepared ?: return null
+        // Undo the user camera (pivot-scale + pan)…
+        val cx = width * 0.5f
+        val cy = height * 0.5f
+        val unzoomedX = (x - userPanX - cx) / userZoom + cx
+        val unzoomedY = (y - userPanY - cy) / userZoom + cy
+        // …then the solved stage camera (view units → pixels).
+        val view = stage.camera.transform.inverse().transform(unzoomedX, unzoomedY)
+        return view
+    }
+
+    /** View units → screen pixels (draws handles and overlays where the artwork is). */
+    fun viewToScreen(point: Vec2): Vec2 {
+        val px = prepared?.camera?.transform?.transform(point) ?: return point
+        val cx = width * 0.5f
+        val cy = height * 0.5f
+        return Vec2(cx + (px.x - cx) * userZoom + userPanX, cy + (px.y - cy) * userZoom + userPanY)
+    }
+
+    /** The topmost drawn part under a screen point (z-order tool selection), or null. */
+    private fun slotAt(x: Float, y: Float): String? {
+        val stage = prepared ?: return null
+        val view = screenToView(x, y) ?: return null
+        // lastDraws is already in paint (z) order, so scan from the topmost part down.
+        for (draw in stage.lastDraws.asReversed()) {
+            val corners = arrayOf(
+                draw.world.transform(draw.restRect.left, draw.restRect.top),
+                draw.world.transform(draw.restRect.right, draw.restRect.top),
+                draw.world.transform(draw.restRect.right, draw.restRect.bottom),
+                draw.world.transform(draw.restRect.left, draw.restRect.bottom),
+            )
+            if (pointInQuad(view, corners)) return draw.slotId
+        }
+        return null
+    }
+
+    private fun pointInQuad(p: Vec2, quad: Array<Vec2>): Boolean {
+        // Convex quad (sprite corners are never self-crossing after an affine): test that the
+        // point is on the same side of all four directed edges.
+        var sign = 0
+        for (i in quad.indices) {
+            val a = quad[i]
+            val b = quad[(i + 1) % quad.size]
+            val cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+            val s = when {
+                cross > 1e-7f -> 1
+                cross < -1e-7f -> -1
+                else -> 0
+            }
+            if (s == 0) continue
+            if (sign == 0) sign = s else if (s != sign) return false
+        }
+        return true
+    }
+
+    private fun tryGrabIkHandle(x: Float, y: Float): Boolean {        val stage = prepared ?: return false
+        val pose = lastPose ?: return false
+        val view = screenToView(x, y) ?: return false
+        val hit = PoseEditing.nearestChain(stage.source.rig, pose, view, handleGrabRadius) ?: return false
+        activeIkChain = hit.first
+        onPoseDrag?.invoke(PoseDragEvent(hit.first.id, view.x, view.y, started = true))
+        return true
+    }
 
     private var activePointerId = -1
     private var lastDragX = 0f
@@ -247,10 +410,16 @@ class StageView @JvmOverloads constructor(
                 activePointerId = event.getPointerId(0)
                 lastDragX = event.x
                 lastDragY = event.y
+                // V6 §10: in pose mode the first finger tries to grab a limb handle; only a
+                // miss falls through to camera panning.
+                if (poseMode && tryGrabIkHandle(event.x, event.y)) return true
                 return true
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (event.pointerCount >= 2) {
+                    // A second finger cancels any IK grab and takes over as a camera gesture.
+                    activeIkChain?.let { onPoseDrag?.invoke(PoseDragEvent(it.id, ended = true)) }
+                    activeIkChain = null
                     pinchStartDistance = pointerDistance(event)
                     pinchStartZoom = userZoom
                     return true
@@ -271,6 +440,14 @@ class StageView @JvmOverloads constructor(
                 if (index >= 0) {
                     val x = event.getX(index)
                     val y = event.getY(index)
+                    val chain = activeIkChain
+                    if (chain != null) {
+                        val view = screenToView(x, y)
+                        if (view != null) {
+                            onPoseDrag?.invoke(PoseDragEvent(chain.id, view.x, view.y))
+                        }
+                        return true
+                    }
                     userPanX += x - lastDragX
                     userPanY += y - lastDragY
                     lastDragX = x
@@ -292,6 +469,15 @@ class StageView @JvmOverloads constructor(
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                val chain = activeIkChain
+                if (chain != null) {
+                    val view = screenToView(event.x, event.y)
+                    onPoseDrag?.invoke(
+                        PoseDragEvent(chain.id, view?.x ?: 0f, view?.y ?: 0f, ended = true),
+                    )
+                    activeIkChain = null
+                    return true
+                }
                 val now = event.eventTime
                 val isDoubleTap = now - lastTapUpMillis <= DOUBLE_TAP_MILLIS &&
                     kotlin.math.abs(event.x - lastTapX) < DOUBLE_TAP_SLOP &&
@@ -301,16 +487,25 @@ class StageView @JvmOverloads constructor(
                 lastTapY = event.y
                 pinchStartDistance = 0f
                 activePointerId = -1
+                // The camera gesture is over: report the settled framing for persistence.
+                onCameraChanged?.invoke(userZoom, userPanX, userPanY)
                 if (isDoubleTap) {
                     // A double-tap cancels the pending single-tap and resets the camera.
                     pendingTap?.let { removeCallbacks(it) }
                     pendingTap = null
                     if (cameraMoved) resetCamera()
                 } else {
+                    val inPoseMode = poseMode
+                    val tapX = event.x
+                    val tapY = event.y
                     val tap = Runnable {
                         pendingTap = null
                         performClick()
-                        onTap?.invoke()
+                        if (inPoseMode) {
+                            onPoseTap?.invoke(slotAt(tapX, tapY))
+                        } else {
+                            onTap?.invoke()
+                        }
                     }
                     pendingTap = tap
                     postDelayed(tap, DOUBLE_TAP_MILLIS)
@@ -318,6 +513,8 @@ class StageView @JvmOverloads constructor(
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                activeIkChain?.let { onPoseDrag?.invoke(PoseDragEvent(it.id, ended = true)) }
+                activeIkChain = null
                 pinchStartDistance = 0f
                 activePointerId = -1
                 return true
@@ -498,3 +695,12 @@ class StageView @JvmOverloads constructor(
         private const val FPS_SAMPLE_WINDOW_NANOS = 500_000_000L
     }
 }
+
+/** One step of an IK drag from the stage (V6 §10), delivered by [StageView.onPoseDrag]. */
+data class PoseDragEvent(
+    val chainId: String,
+    val viewX: Float = 0f,
+    val viewY: Float = 0f,
+    val started: Boolean = false,
+    val ended: Boolean = false,
+)

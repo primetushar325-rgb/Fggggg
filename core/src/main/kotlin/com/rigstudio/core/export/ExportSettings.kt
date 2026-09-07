@@ -24,9 +24,9 @@ object ExportLimits {
     const val MAX_SPEED = 3f
 
     const val MIN_WIDTH = 480
-    const val MAX_WIDTH = 1920
+    const val MAX_WIDTH = 3840
     const val MIN_HEIGHT = 270
-    const val MAX_HEIGHT = 1080
+    const val MAX_HEIGHT = 2160
 
     const val MIN_FPS = 12
     const val MAX_FPS = 60
@@ -43,6 +43,7 @@ object ExportLimits {
 enum class ExportResolution(val label: String, val width: Int, val height: Int) {
     HD_720("720p (1280 × 720)", 1280, 720),
     FULL_HD_1080("1080p (1920 × 1080)", 1920, 1080),
+    UHD_4K("4K (3840 × 2160)", 3840, 2160),
     ;
 
     val aspect: Float get() = width.toFloat() / height.toFloat()
@@ -87,6 +88,11 @@ data class ExportSettings(
     val transparentBackground: Boolean = false,
     /** Optional local audio file muxed into the MP4 (AAC passthrough). */
     val audioPath: String? = null,
+    /**
+     * Manual z-order edits from the editor (V6 §26), so an exported frame layers parts exactly
+     * the way the user arranged them on the stage — preview and export cannot drift apart.
+     */
+    val zOrderOverrides: Map<String, Int> = emptyMap(),
 ) {
 
     val framePlan: FramePlan get() = FramePlan.of(durationSeconds, frameRate.fps)

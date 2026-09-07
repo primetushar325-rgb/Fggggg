@@ -38,6 +38,28 @@ object RenderTests {
         Fixtures.rig(ViewKind.FRONT, include = include)
 
     val cases: List<TestCase> = listOf(
+        TestCase("manual z-order overrides re-stamp and re-sort the draw list") {
+            val rig = Fixtures.rig()
+            val draws = PuppetComposer.compose(rig, com.rigstudio.core.rig.Pose())
+            Assert.that(draws.isNotEmpty()) { "fixture rig draws parts" }
+
+            // The head slot normally sits under the face; push it behind everything.
+            val headSlot = draws.first { it.slotId == "front_head" }.slotId
+            val overridden = PuppetComposer.applyZOverrides(draws, mapOf(headSlot to -5))
+            val head = overridden.first { it.slotId == headSlot }
+            Assert.equals(-5, head.z, "head z re-stamped")
+            Assert.that(overridden.indexOfFirst { it.slotId == headSlot } < overridden.indexOfFirst { it.slotId != headSlot }) {
+                "the overridden head must sort before untouched parts"
+            }
+            // Untouched draws keep their z.
+            val other = overridden.first { it.slotId != headSlot }
+            Assert.equals(draws.first { it.slotId == other.slotId }.z, other.z, "other parts keep their z")
+
+            // Empty overrides are a no-op (same list).
+            Assert.that(PuppetComposer.applyZOverrides(draws, emptyMap()) === draws) {
+                "no overrides must not rebuild the list"
+            }
+        },
         TestCase("every drawn part appears once, in layer order") {
             val rig = Fixtures.rig()
             val draws = PuppetComposer.compose(rig, Pose.REST)

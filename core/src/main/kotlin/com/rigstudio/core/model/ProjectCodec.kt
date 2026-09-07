@@ -20,20 +20,19 @@ import com.rigstudio.core.json.stringList
 import com.rigstudio.core.json.stringOrNull
 
 /**
- * JSON serialization for saved characters.
+ * JSON serialization for saved characters (`.rigstudio` project manifest, V6 §39).
  *
  * Enums are stored by name and unknown values are dropped rather than crashing, so a project file
  * written by a future version still opens (minus whatever this build does not understand).
+ * Older format versions are migrated forward by [ProjectSchema] before decoding.
  */
 object ProjectCodec {
-
-    private const val CURRENT_TEMPLATE_VERSION = 1
 
     fun encode(project: CharacterProject): String =
         Json.stringify(encodeProject(project), pretty = true)
 
     fun encodeProject(project: CharacterProject): JsonValue.Obj = obj(
-        "format" to num(1),
+        "format" to num(ProjectSchema.CURRENT_FORMAT),
         "templateVersion" to num(project.templateVersion),
         "id" to str(project.id),
         "name" to str(project.name),
@@ -54,6 +53,16 @@ object ProjectCodec {
         "lastView" to str(project.lastView.name),
         "lastBackgroundArgb" to project.lastBackgroundArgb?.let { num(it) },
         "lastSpeed" to num(project.lastSpeed),
+        "lastCameraZoom" to num(project.lastCameraZoom),
+        "lastCameraPanX" to num(project.lastCameraPanX),
+        "lastCameraPanY" to num(project.lastCameraPanY),
+        "zOrderOverrides" to JsonValue.Obj(
+            project.zOrderOverrides.entries
+                .sortedBy { it.key }
+                .associate { (slotId, z) -> slotId to num(z) },
+        ),
+        "posePresetIds" to arr(project.posePresetIds.map { str(it) }),
+        "userClipIds" to arr(project.userClipIds.map { str(it) }),
     )
 
     fun decode(json: String): CharacterProject? {
@@ -62,34 +71,45 @@ object ProjectCodec {
     }
 
     fun decodeProject(value: JsonValue): CharacterProject? {
-        val id = value.string("id")
-        val name = value.string("name")
+        if (value !is JsonValue.Obj) return null
+        val migrated = ProjectSchema.migrate(value)
+        val id = migrated.string("id")
+        val name = migrated.string("name")
         if (id.isBlank()) return null
 
         return CharacterProject(
             id = id,
             name = name.ifBlank { "Character" },
-            createdAtEpochMillis = value.long("createdAt"),
-            updatedAtEpochMillis = value.long("updatedAt", value.long("createdAt")),
-            lastOpenedAtEpochMillis = value.long("lastOpenedAt", value.long("updatedAt")),
-            sheetFileName = value.string("sheetFileName", "sheet.png"),
-            sheetWidth = value.int("sheetWidth", 2048),
-            sheetHeight = value.int("sheetHeight", 2048),
-            thumbnailFileName = value.stringOrNull("thumbnailFileName"),
-            sprites = value.objList("sprites").mapNotNull { decodeSprite(it) },
-            availableViews = value.stringList("availableViews").mapNotNull { enumOrNull<ViewKind>(it) },
-            mirroredSideView = value.boolean("mirroredSideView"),
-            availableExpressions = value.stringList("availableExpressions")
+            createdAtEpochMillis = migrated.long("createdAt"),
+            updatedAtEpochMillis = migrated.long("updatedAt", migrated.long("createdAt")),
+            lastOpenedAtEpochMillis = migrated.long("lastOpenedAt", migrated.long("updatedAt")),
+            sheetFileName = migrated.string("sheetFileName", "sheet.png"),
+            sheetWidth = migrated.int("sheetWidth", 2048),
+            sheetHeight = migrated.int("sheetHeight", 2048),
+            thumbnailFileName = migrated.stringOrNull("thumbnailFileName"),
+            sprites = migrated.objList("sprites").mapNotNull { decodeSprite(it) },
+            availableViews = migrated.stringList("availableViews").mapNotNull { enumOrNull<ViewKind>(it) },
+            mirroredSideView = migrated.boolean("mirroredSideView"),
+            availableExpressions = migrated.stringList("availableExpressions")
                 .mapNotNull { enumOrNull<Expression>(it) },
-            availableMouthShapes = value.stringList("availableMouthShapes")
+            availableMouthShapes = migrated.stringList("availableMouthShapes")
                 .mapNotNull { enumOrNull<MouthShape>(it) },
-            notes = value.stringList("notes"),
-            lastClipId = value.string("lastClipId", "idle"),
-            lastView = enumOrNull<ViewKind>(value.string("lastView", ViewKind.FRONT.name))
+            notes = migrated.stringList("notes"),
+            lastClipId = migrated.string("lastClipId", "idle"),
+            lastView = enumOrNull<ViewKind>(migrated.string("lastView", ViewKind.FRONT.name))
                 ?: ViewKind.FRONT,
-            lastBackgroundArgb = (value.get("lastBackgroundArgb") as? JsonValue.Num)?.intValue,
-            lastSpeed = value.float("lastSpeed", 1f),
-            templateVersion = value.int("templateVersion", CURRENT_TEMPLATE_VERSION),
+            lastBackgroundArgb = (migrated.get("lastBackgroundArgb") as? JsonValue.Num)?.intValue,
+            lastSpeed = migrated.float("lastSpeed", 1f),
+            templateVersion = migrated.int("templateVersion", 1),
+            lastCameraZoom = migrated.float("lastCameraZoom", 1f),
+            lastCameraPanX = migrated.float("lastCameraPanX", 0f),
+            lastCameraPanY = migrated.float("lastCameraPanY", 0f),
+            zOrderOverrides = ((migrated.get("zOrderOverrides") as? JsonValue.Obj)?.members
+                ?: emptyMap()).mapNotNull { (slotId, z) ->
+                (z as? JsonValue.Num)?.intValue?.let { slotId to it }
+            }.toMap(),
+            posePresetIds = migrated.stringList("posePresetIds"),
+            userClipIds = migrated.stringList("userClipIds"),
         )
     }
 

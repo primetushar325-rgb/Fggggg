@@ -164,6 +164,45 @@ object ProjectTests {
             Assert.that(project.hasProfileArtwork) { "profile availability is derived" }
             Assert.that(project.spriteAssets().isNotEmpty()) { "manifest converts to rig assets" }
         },
+        TestCase("project manifests carry schemaVersion 6") {
+            val result = Fixtures.process()
+            val project = sampleProject(result).copy(
+                lastCameraZoom = 1.6f,
+                lastCameraPanX = -0.2f,
+                lastCameraPanY = 0.1f,
+            )
+            val encoded = ProjectCodec.encodeProject(project)
+            Assert.equals(6, ((encoded.get("format") as? JsonValue.Num)?.intValue), "writer stamps format 6")
+            val back = ProjectCodec.decodeProject(encoded)!!
+            Assert.close(1.6f, back.lastCameraZoom, 1e-6f, "camera zoom round-trips")
+            Assert.close(-0.2f, back.lastCameraPanX, 1e-6f, "camera pan x round-trips")
+            Assert.close(0.1f, back.lastCameraPanY, 1e-6f, "camera pan y round-trips")
+        },
+        TestCase("format 1 projects migrate forward to 6") {
+            // A V5-era manifest: no camera, no z-order, no user content — written as format 1.
+            val legacy = """{"format":1,"id":"legacy","name":"Legacy","createdAt":10,"updatedAt":20,
+                "sheetFileName":"sheet.png","sheetWidth":2048,"sheetHeight":2048,
+                "sprites":[],"availableViews":["FRONT"],"mirroredSideView":false,
+                "lastClipId":"walk","lastView":"FRONT","lastSpeed":1.5}""".replace("\n", " ")
+            val decoded = ProjectCodec.decode(legacy)
+            Assert.that(decoded != null) { "a format 1 project must still open" }
+            Assert.close(1f, decoded!!.lastCameraZoom, 1e-6f, "camera defaults to fit after migration")
+            Assert.close(0f, decoded.lastCameraPanX, 1e-6f, "pan defaults to centre")
+            Assert.that(decoded.zOrderOverrides.isEmpty()) { "no z-order edits in a legacy project" }
+            Assert.close(1.5f, decoded.lastSpeed, 1e-6f, "legacy fields survive migration")
+            // Re-saving stamps the new format.
+            val resaved = ProjectCodec.encodeProject(decoded)
+            Assert.equals(6, ((resaved.get("format") as? JsonValue.Num)?.intValue), "resave upgrades the manifest")
+        },
+        TestCase("manual z-order edits persist") {
+            val project = sampleProject(Fixtures.process()).copy(
+                zOrderOverrides = mapOf("front_head" to 95, "front_upper_arm_l" to 10),
+            )
+            val back = ProjectCodec.decodeProject(ProjectCodec.encodeProject(project))!!
+            Assert.equals(95, back.zOrderOverrides["front_head"], "head z override round-trips")
+            Assert.equals(10, back.zOrderOverrides["front_upper_arm_l"], "arm z override round-trips")
+            Assert.equals(2, back.zOrderOverrides.size, "no phantom overrides appear")
+        },
         TestCase("corrupt project files degrade instead of crashing") {
             Assert.equals(null, ProjectCodec.decode("this is not json"))
             Assert.equals(null, ProjectCodec.decode(""))

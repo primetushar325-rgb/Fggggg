@@ -109,7 +109,9 @@ class ExportViewModel(private val app: RigStudioApplication) : ViewModel() {
             val project = loadedCharacter.project
             val views = loadedCharacter.availableViews.ifEmpty { listOf(ViewKind.FRONT) }
             val view = (seed?.view ?: project.lastView).takeIf { it in views } ?: ViewKind.FRONT
-            val clips = AnimationLibrary.playableIn(view, loadedCharacter.hasProfileArtwork)
+            val userClips = withContext(Dispatchers.IO) { store.loadUserClips(projectId) }
+            val clips = AnimationLibrary.playableIn(view, loadedCharacter.hasProfileArtwork) +
+                userClips.map { it.toAnimationClip() }
             val clipId = (seed?.clipId ?: project.lastClipId).takeIf { id -> id in clips.map { it.id } }
                 ?: clips.firstOrNull()?.id
                 ?: AnimationLibrary.IDLE.id
@@ -151,7 +153,8 @@ class ExportViewModel(private val app: RigStudioApplication) : ViewModel() {
     // --- settings -----------------------------------------------------------------------------
 
     fun selectClip(clipId: String) {
-        val clip = AnimationLibrary.byId(clipId) ?: return
+        val clip = _state.value.clips.firstOrNull { it.id == clipId }
+            ?: AnimationLibrary.byId(clipId) ?: return
         val current = _state.value
         val loadedCharacter = character ?: return
         var view = current.settings.view
@@ -161,7 +164,8 @@ class ExportViewModel(private val app: RigStudioApplication) : ViewModel() {
             _state.update { it.copy(message = EditorState.SIDE_VIEW_MISSING) }
             return
         }
-        val clips = AnimationLibrary.playableIn(view, loadedCharacter.hasProfileArtwork)
+        val clips = AnimationLibrary.playableIn(view, loadedCharacter.hasProfileArtwork) +
+            _state.value.clips.filter { it.id.startsWith("user_") }
         applySettings {
             it.copy(
                 view = view,
@@ -188,7 +192,8 @@ class ExportViewModel(private val app: RigStudioApplication) : ViewModel() {
             return
         }
         val loadedCharacter = character ?: return
-        val clips = AnimationLibrary.playableIn(view, loadedCharacter.hasProfileArtwork)
+        val clips = AnimationLibrary.playableIn(view, loadedCharacter.hasProfileArtwork) +
+            _state.value.clips.filter { it.id.startsWith("user_") }
         val clipId = _state.value.settings.clipId.takeIf { id -> id in clips.map { it.id } }
             ?: clips.firstOrNull()?.id ?: AnimationLibrary.IDLE.id
         applySettings { it.copy(view = view, clipId = clipId) }

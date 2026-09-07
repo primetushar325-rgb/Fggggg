@@ -43,6 +43,23 @@ data class Pose(
     fun poseOf(boneId: String): BonePose = bones[boneId] ?: BonePose.REST
 
     /**
+     * Applies a partial pose on top of this one: bones present in [partial] replace their
+     * counterpart (whole [BonePose], not merged field-by-field), everything else keeps running.
+     * This is what a pose-editor drag produces — the edited limb is pinned while the rest of
+     * the animation keeps playing underneath it.
+     */
+    fun override(partial: Pose): Pose {
+        if (partial.bones.isEmpty() && partial.root == BonePose.REST) return this
+        val merged = LinkedHashMap<String, BonePose>(bones.size + partial.bones.size)
+        merged.putAll(bones)
+        merged.putAll(partial.bones)
+        return copy(
+            root = if (partial.root == BonePose.REST) root else partial.root,
+            bones = merged,
+        )
+    }
+
+    /**
      * Horizontally mirrored pose: `_l` and `_r` swap and rotations/offsets flip sign, so bone
      * semantics survive the mirror (the left arm stays the left arm, it just appears on the
      * other side).

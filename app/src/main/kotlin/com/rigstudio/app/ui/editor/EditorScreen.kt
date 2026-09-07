@@ -38,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SnackbarHost
@@ -83,6 +84,7 @@ import com.rigstudio.app.ui.components.ChipStrip
 import com.rigstudio.app.ui.components.FieldLabel
 import com.rigstudio.app.ui.components.RigChip
 import com.rigstudio.app.ui.components.RigPrimaryButton
+import com.rigstudio.app.ui.components.RigSecondaryButton
 import com.rigstudio.app.ui.components.RigTextButton
 import com.rigstudio.app.ui.components.RigChip
 import com.rigstudio.app.ui.components.RigTopBar
@@ -219,6 +221,8 @@ fun EditorScreen(
                 speed = state.speed,
                 looping = state.looping,
                 debugOverlay = state.debugOverlay,
+                poseMode = state.poseMode,
+                draggingLimb = state.draggingLimb,
             )
 
             TransportBar(
@@ -277,6 +281,16 @@ fun EditorScreen(
                     onSpeedChange = viewModel::setSpeed,
                 )
 
+                PoseEditorCard(
+                    state = state,
+                    viewModel = viewModel,
+                )
+
+                ZOrderCard(
+                    state = state,
+                    viewModel = viewModel,
+                )
+
                 if (state.expressions.isNotEmpty() || state.mouthShapes.isNotEmpty()) {
                     FaceCard(
                         state = state,
@@ -311,9 +325,21 @@ private fun StageArea(
     speed: Float,
     looping: Boolean,
     debugOverlay: Boolean,
+    poseMode: Boolean,
+    draggingLimb: Boolean,
 ) {
     val lastClipId = remember { mutableStateOf<String?>(null) }
     val stageRef = remember { mutableStateOf<StageView?>(null) }
+    val restoredCamera = remember { mutableStateOf(false) }
+    LaunchedEffect(loaded) {
+        if (loaded && !restoredCamera.value) {
+            restoredCamera.value = true
+            val (zoom, panX, panY) = viewModel.savedCamera()
+            if (zoom != 1f || panX != 0f || panY != 0f) {
+                stageRef.value?.restoreCamera(zoom, panX, panY)
+            }
+        }
+    }
 
     Box(
         Modifier
@@ -331,6 +357,16 @@ private fun StageArea(
                     onFrame = { time, playing -> viewModel.onFrameReported(time, playing) }
                     onFinished = { viewModel.onPlaybackFinished() }
                     onTap = { viewModel.togglePlay() }
+                    // V6 §10: limb drags and part taps from the pose editor.
+                    onPoseDrag = { event ->
+                        viewModel.onStagePoseDrag(
+                            event.chainId, event.viewX, event.viewY, event.started, event.ended,
+                        )
+                    }
+                    onPoseTap = { slotId -> viewModel.setSelectedSlot(slotId) }
+                    onCameraChanged = { zoom, panX, panY ->
+                        viewModel.onCameraChanged(zoom, panX, panY)
+                    }
                     stageRef.value = this
                 }
             },
@@ -340,6 +376,7 @@ private fun StageArea(
                 view.speed = speed
                 view.loop = looping
                 view.debugOverlay = debugOverlay
+                view.poseMode = poseMode
 
                 // A different clip: keep the proportional playhead instead of snapping to zero.
                 val clip = stageSource?.clip
@@ -369,6 +406,9 @@ private fun StageArea(
             StatusPill(viewLabel.uppercase(), RigColors.Primary)
             if (clipName != null) {
                 StatusPill(clipName, RigColors.Secondary)
+            }
+            if (poseMode) {
+                StatusPill(if (draggingLimb) "POSE · DRAG" else "POSE", RigColors.Error)
             }
         }
 
@@ -932,6 +972,279 @@ private fun BackgroundCard(
                     uncheckedBorderColor = RigColors.Outline,
                 ),
             )
+        }
+    }
+}
+
+/**
+ * The pose editor (V6 §10, §12, §47, §48): mode toggle, the four pose tools, the pose library,
+ * keyframe capture and the user's own animation library — every button performs its real
+ * operation against the live stage above.
+ */
+@Composable
+private fun PoseEditorCard(
+    state: EditorState,
+    viewModel: EditorViewModel,
+) {
+    SectionCard(
+        title = "Pose editor",
+        trailing = {
+            RigChip(
+                label = if (state.poseMode) "Pose mode: ON" else "Pose mode: OFF",
+                selected = state.poseMode,
+                onClick = { viewModel.setPoseMode(!state.poseMode) },
+            )
+        },
+    ) {
+        Text(
+            text = if (state.poseMode) {
+                "Drag a limb handle to pose with 2-bone IK. Pinch = zoom, two fingers = pan, tap a part to select it for layer tools."
+            } else {
+                "Turn on Pose Mode to drag limbs directly. Playback pauses while you pose."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = RigColors.TextSecondary,
+        )
+        Spacer(Modifier.height(10.dp))
+
+        // --- pose tools: Reset / Mirror / Copy / Paste (V6 §10) --------------------------------
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RigSecondaryButton(text = "Reset", onClick = viewModel::resetPose, modifier = Modifier.weight(1f))
+            RigSecondaryButton(text = "Mirror", onClick = viewModel::mirrorPose, modifier = Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RigSecondaryButton(text = "Copy", onClick = viewModel::copyPose, modifier = Modifier.weight(1f))
+            RigSecondaryButton(
+                text = "Paste",
+                onClick = viewModel::pastePose,
+                enabled = state.clipboardPose != null,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // --- pose library (V6 §47) ------------------------------------------------------------
+        Spacer(Modifier.height(12.dp))
+        FieldLabel("Pose library")
+        val poseName = remember { mutableStateOf("") }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = poseName.value,
+                onValueChange = { poseName.value = it },
+                label = { Text("Pose name") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            RigPrimaryButton(
+                text = "Save pose",
+                onClick = {
+                    viewModel.saveCurrentPose(poseName.value)
+                    poseName.value = ""
+                },
+                enabled = state.loaded,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Built-in poses",
+            style = MaterialTheme.typography.labelSmall,
+            color = RigColors.TextSecondary,
+        )
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            for (preset in com.rigstudio.core.anim.PoseLibrary.BUILT_INS) {
+                RigChip(
+                    label = preset.name,
+                    selected = false,
+                    onClick = { viewModel.applyPose(preset.id) },
+                )
+            }
+        }
+        if (state.userPoses.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Your poses",
+                style = MaterialTheme.typography.labelSmall,
+                color = RigColors.TextSecondary,
+            )
+            for (preset in state.userPoses) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = preset.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = RigColors.TextPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    RigTextButton(text = "Apply", onClick = { viewModel.applyPose(preset.id) })
+                    RigTextButton(text = "Duplicate", onClick = { viewModel.duplicateUserPose(preset.id) })
+                    RigTextButton(text = "Delete", onClick = { viewModel.deleteUserPose(preset.id) })
+                }
+            }
+        }
+
+        // --- keyframes (V6 §12) ------------------------------------------------------------------
+        Spacer(Modifier.height(12.dp))
+        FieldLabel("Keyframes (custom animation)")
+        Text(
+            text = "Scrub the timeline, pose the character, then capture a keyframe at that moment. Two or more keyframes become a custom animation.",
+            style = MaterialTheme.typography.bodySmall,
+            color = RigColors.TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RigPrimaryButton(
+                text = "Add keyframe",
+                onClick = viewModel::addKeyframe,
+                enabled = state.loaded,
+                modifier = Modifier.weight(1f),
+            )
+            RigSecondaryButton(
+                text = "Clear all",
+                onClick = viewModel::clearKeyframes,
+                enabled = state.keyframes.isNotEmpty(),
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (state.keyframes.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            for ((index, key) in state.keyframes.withIndex()) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "#${index + 1} at ${"%.2f".format(key.time)} · ${key.rotations.size} bones",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = RigColors.TextPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    RigTextButton(text = "Delete", onClick = { viewModel.deleteKeyframe(index) })
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            val clipName = remember { mutableStateOf("") }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = clipName.value,
+                    onValueChange = { clipName.value = it },
+                    label = { Text("Animation name") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                RigPrimaryButton(
+                    text = "Save & play",
+                    onClick = {
+                        viewModel.saveKeyframesAsClip(clipName.value, 2f)
+                        clipName.value = ""
+                    },
+                )
+            }
+        }
+
+        // --- user animation library (V6 §48) ------------------------------------------------------
+        if (state.userClips.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            FieldLabel("Your animations")
+            for (clip in state.userClips) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = clip.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = RigColors.TextPrimary,
+                        )
+                        Text(
+                            text = "${clip.keys.size} keys · ${"%.1f".format(clip.durationSeconds)} s",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = RigColors.TextSecondary,
+                        )
+                    }
+                    RigTextButton(text = "Play", onClick = { viewModel.playUserClip(clip.id) })
+                    RigTextButton(text = "Mirror", onClick = { viewModel.mirrorUserClip(clip.id) })
+                    RigTextButton(text = "Delete", onClick = { viewModel.deleteUserClip(clip.id) })
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Manual z-order editing (V6 §26): tap a part on the stage in Pose Mode, then move its layer.
+ */
+@Composable
+private fun ZOrderCard(
+    state: EditorState,
+    viewModel: EditorViewModel,
+) {
+    SectionCard(title = "Layers (z-order)") {
+        Text(
+            text = if (state.selectedSlotId != null) {
+                "Selected: ${state.selectedSlotId}"
+            } else {
+                "In Pose Mode, tap a part on the stage to select it, then move its layer."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (state.selectedSlotId != null) RigColors.TextPrimary else RigColors.TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            RigSecondaryButton(
+                text = "Front",
+                onClick = { viewModel.moveLayer(LayerAction.FRONT) },
+                enabled = state.selectedSlotId != null,
+                modifier = Modifier.weight(1f),
+            )
+            RigSecondaryButton(
+                text = "Forward",
+                onClick = { viewModel.moveLayer(LayerAction.FORWARD) },
+                enabled = state.selectedSlotId != null,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            RigSecondaryButton(
+                text = "Backward",
+                onClick = { viewModel.moveLayer(LayerAction.BACKWARD) },
+                enabled = state.selectedSlotId != null,
+                modifier = Modifier.weight(1f),
+            )
+            RigSecondaryButton(
+                text = "Back",
+                onClick = { viewModel.moveLayer(LayerAction.BACK) },
+                enabled = state.selectedSlotId != null,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (state.zOrderOverrides.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${state.zOrderOverrides.size} layer edit(s) applied",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = RigColors.TextSecondary,
+                )
+                RigTextButton(
+                    text = "Reset selected",
+                    onClick = { viewModel.moveLayer(LayerAction.CLEAR) },
+                    enabled = state.selectedSlotId != null,
+                )
+            }
         }
     }
 }

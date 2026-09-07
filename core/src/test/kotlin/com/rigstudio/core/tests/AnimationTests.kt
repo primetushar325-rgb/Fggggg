@@ -35,11 +35,12 @@ object AnimationTests {
         "idle", "stand", "walk", "run", "talk", "wave", "sit", "sleep", "jump",
         "walk_talk", "side_walk", "side_run", "side_talk", "look_back",
         "happy", "sad", "angry", "surprised",
+        "point", "nod", "shake_head", "look_left", "look_right",
     )
 
     val cases: List<TestCase> = listOf(
-        TestCase("the library ships all eighteen required animations") {
-            Assert.equals(18, AnimationLibrary.ALL.size, "clip count")
+        TestCase("the library ships all twenty-three required animations") {
+            Assert.equals(23, AnimationLibrary.ALL.size, "clip count")
             val ids = AnimationLibrary.ALL.map { it.id }
             Assert.equals(REQUIRED_CLIPS.sorted(), ids.sorted(), "clip ids")
             Assert.equals(ids.distinct().size, ids.size, "clip ids must be unique")
@@ -417,17 +418,17 @@ object AnimationTests {
         TestCase("the view filter enables and disables clips correctly") {
             val noProfile = AnimationLibrary.playableIn(ViewKind.FRONT, hasProfileArtwork = false)
             Assert.that(noProfile.none { it.needsSideView }) { "profile clips need profile artwork" }
-            Assert.equals(15, noProfile.size, "fifteen clips play without profile artwork")
+            Assert.equals(20, noProfile.size, "twenty clips play without profile artwork")
 
             val frontWithProfile = AnimationLibrary.playableIn(ViewKind.FRONT, hasProfileArtwork = true)
-            Assert.equals(15, frontWithProfile.size, "profile clips only appear in a profile view")
+            Assert.equals(20, frontWithProfile.size, "profile clips only appear in a profile view")
 
             val side = AnimationLibrary.playableIn(ViewKind.SIDE_LEFT, hasProfileArtwork = true)
-            Assert.equals(18, side.size, "every clip plays in a profile view")
+            Assert.equals(23, side.size, "every clip plays in a profile view")
             Assert.contains(side.map { it.id }, "side_walk")
 
             val back = AnimationLibrary.playableIn(ViewKind.BACK, hasProfileArtwork = false)
-            Assert.equals(15, back.size, "the back view plays the view-agnostic clips")
+            Assert.equals(20, back.size, "the back view plays the view-agnostic clips")
         },
         TestCase("clips are grouped for the editor") {
             val categories = AnimationLibrary.ALL.map { it.category }.toSet()

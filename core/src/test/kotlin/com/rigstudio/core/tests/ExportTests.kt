@@ -173,7 +173,7 @@ object ExportTests {
                 Assert.inRange(resolution.height.toFloat(), ExportLimits.MIN_HEIGHT.toFloat(), ExportLimits.MAX_HEIGHT.toFloat(), "${resolution.label} height")
                 Assert.close(16f / 9f, resolution.aspect, 1e-3f, "editor default aspect is 16:9")
             }
-            Assert.equals(2, ExportResolution.entries.size, "720p and 1080p only")
+            Assert.equals(3, ExportResolution.entries.size, "720p, 1080p and 4K")
             for (rate in ExportFrameRate.entries) {
                 Assert.inRange(rate.fps.toFloat(), ExportLimits.MIN_FPS.toFloat(), ExportLimits.MAX_FPS.toFloat(), "fps")
             }

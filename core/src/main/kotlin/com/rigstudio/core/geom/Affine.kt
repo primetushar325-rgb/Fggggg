@@ -39,6 +39,25 @@ data class Affine(
 
     fun transform(x: Float, y: Float) = Vec2(a * x + c * y + tx, b * x + d * y + ty)
 
+    /**
+     * The inverse transform: maps this transform's output back to its input. RigStudio's
+     * cameras are always invertible (uniform positive scale); a degenerate transform falls
+     * back to identity so a caller can never divide by zero.
+     */
+    fun inverse(): Affine {
+        val det = a * d - b * c
+        if (kotlin.math.abs(det) < 1e-12f) return IDENTITY
+        val invA = d / det
+        val invB = -b / det
+        val invC = -c / det
+        val invD = a / det
+        return Affine(
+            a = invA, b = invB, c = invC, d = invD,
+            tx = -(invA * tx + invC * ty),
+            ty = -(invB * tx + invD * ty),
+        )
+    }
+
     /** Uniform scale factor implied by the transform (used for line widths / LOD). */
     fun scaleMagnitude(): Float {
         val sx = kotlin.math.hypot(a, b)

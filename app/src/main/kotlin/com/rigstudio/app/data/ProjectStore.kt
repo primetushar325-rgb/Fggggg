@@ -7,6 +7,10 @@ import android.util.LruCache
 import com.rigstudio.app.render.downscaleTo
 import com.rigstudio.app.render.ThumbnailRenderer
 import com.rigstudio.app.render.toBitmap
+import com.rigstudio.core.anim.PosePreset
+import com.rigstudio.core.anim.PosePresetCodec
+import com.rigstudio.core.anim.UserClip
+import com.rigstudio.core.anim.UserClipCodec
 import com.rigstudio.core.extract.ExtractedSprite
 import com.rigstudio.core.model.CharacterProject
 import com.rigstudio.core.model.ProjectCodec
@@ -91,6 +95,60 @@ class ProjectStore(private val context: Context) {
     fun thumbnailFile(projectId: String): File = File(directoryFor(projectId), "thumb.png")
 
     fun spriteFile(projectId: String, slotId: String): File = File(spritesDir(projectId), "$slotId.png")
+
+    // --- user content (V6 §47–§48: poses & animations saved beside the artwork) ---------------
+
+    fun posesFile(projectId: String): File = File(directoryFor(projectId), USER_POSES_NAME)
+
+    fun animationsFile(projectId: String): File = File(directoryFor(projectId), USER_ANIMATIONS_NAME)
+
+    /** User-saved poses for a project; missing or damaged files read as "none yet". */
+    fun loadPoses(projectId: String): List<PosePreset> {
+        val file = posesFile(projectId)
+        if (!file.isFile) return emptyList()
+        return runCatching { PosePresetCodec.decodeJsonOrNull(file.readText(Charsets.UTF_8)) }
+            .getOrNull() ?: emptyList()
+    }
+
+    /** Saves the project's user poses atomically (temp file + rename, same as project.json). */
+    fun savePoses(projectId: String, poses: List<PosePreset>) {
+        writeTextAtomically(posesFile(projectId), PosePresetCodec.encodeJson(poses))
+    }
+
+    fun deleteUserPose(projectId: String, presetId: String): List<PosePreset> {
+        val remaining = loadPoses(projectId).filterNot { it.id == presetId }
+        savePoses(projectId, remaining)
+        return remaining
+    }
+
+    /** User-authored animations for a project; missing or damaged files read as "none yet". */
+    fun loadUserClips(projectId: String): List<UserClip> {
+        val file = animationsFile(projectId)
+        if (!file.isFile) return emptyList()
+        return runCatching { UserClipCodec.decodeJsonOrNull(file.readText(Charsets.UTF_8)) }
+            .getOrNull() ?: emptyList()
+    }
+
+    /** Saves the project's user animations atomically. */
+    fun saveUserClips(projectId: String, clips: List<UserClip>) {
+        writeTextAtomically(animationsFile(projectId), UserClipCodec.encodeJson(clips))
+    }
+
+    fun deleteUserClip(projectId: String, clipId: String): List<UserClip> {
+        val remaining = loadUserClips(projectId).filterNot { it.id == clipId }
+        saveUserClips(projectId, remaining)
+        return remaining
+    }
+
+    private fun writeTextAtomically(file: File, text: String) {
+        file.parentFile?.mkdirs()
+        val temp = File(file.parentFile, file.name + ".tmp")
+        temp.writeText(text, Charsets.UTF_8)
+        if (file.exists()) file.delete()
+        if (!temp.renameTo(file)) {
+            throw ProjectStoreException("Could not save ${file.name}.")
+        }
+    }
 
     // --- listing -----------------------------------------------------------------------------
 
@@ -314,6 +372,10 @@ class ProjectStore(private val context: Context) {
         const val SHEET_NAME = "sheet.png"
         const val THUMBNAIL_NAME = "thumb.png"
         const val THUMBNAIL_SIZE = 320
+
+        /** User content documents (V6 §39): versioned, atomic, one concern per file. */
+        const val USER_POSES_NAME = "poses.json"
+        const val USER_ANIMATIONS_NAME = "animations.json"
 
         fun newProjectId(nowEpochMillis: Long): String =
             "char_%d_%04d".format(nowEpochMillis, (0..9999).random())

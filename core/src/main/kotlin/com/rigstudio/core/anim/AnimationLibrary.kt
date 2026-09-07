@@ -1003,11 +1003,207 @@ object AnimationLibrary {
         ),
     )
 
+    // ---------------------------------------------------------------------------------------
+    // 16. POINT — right arm extends and holds, head follows the aim, weight settles back.
+    // ---------------------------------------------------------------------------------------
+    val POINT = AnimationClip(
+        id = "point",
+        name = "Point",
+        durationSeconds = 1.5f,
+        loop = true,
+        category = ClipCategory.ACTION,
+        description = "Raises the screen-right arm into an aiming point, holds, returns.",
+        rootTrack = root(
+            k(0.00f, 0f, 0f, 0f),
+            k(0.30f, 0f, -0.008f, 0f),
+            k(0.80f, 0f, -0.008f, 0f),
+            k(1.00f, 0f, 0f, 0f),
+        ),
+        tracks = mapOf(
+            track(BoneIds.TORSO, k(0.00f, 0f), k(0.30f, -3f), k(0.80f, -3f), k(1.00f, 0f)),
+            track(
+                BoneIds.HEAD,
+                k(0.00f, 0f), k(0.26f, 6f, easing = Easing.EASE_OUT), k(0.78f, 6f),
+                k(1.00f, 0f, easing = Easing.EASE_IN_OUT_CUBIC),
+            ),
+            // Aiming arm: shoulder opens, elbow straightens into the point, hand leads last.
+            track(
+                BoneIds.UPPER_ARM_R,
+                k(0.00f, 0f), k(0.24f, -88f, easing = Easing.EASE_OUT_BACK), k(0.82f, -88f),
+                k(1.00f, 0f, easing = Easing.EASE_IN_OUT_CUBIC),
+            ),
+            track(
+                BoneIds.FOREARM_R,
+                k(0.00f, 0f), k(0.16f, 24f), k(0.30f, -6f), k(0.82f, -6f),
+                k(1.00f, 0f, easing = Easing.EASE_IN_OUT_CUBIC),
+            ),
+            track(
+                BoneIds.HAND_R,
+                k(0.00f, 0f), k(0.34f, -14f), k(0.82f, -14f), k(1.00f, 0f),
+            ),
+            // The other arm settles on the hip.
+            track(
+                BoneIds.UPPER_ARM_L,
+                k(0.00f, 0f), k(0.30f, -18f), k(0.80f, -18f), k(1.00f, 0f),
+            ),
+            track(
+                BoneIds.FOREARM_L,
+                k(0.00f, 0f), k(0.30f, -52f), k(0.80f, -52f), k(1.00f, 0f),
+            ),
+        ),
+        expressionTrack = expressions(
+            0.00f to Expression.NEUTRAL,
+            0.28f to Expression.ANGRY,
+            0.80f to Expression.NEUTRAL,
+        ),
+        mouthTrack = mouths(
+            0.00f to MouthShape.CLOSED,
+            0.28f to MouthShape.NORMAL,
+            0.82f to MouthShape.CLOSED,
+            1.00f to MouthShape.CLOSED,
+        ),
+    )
+
+    // ---------------------------------------------------------------------------------------
+    // 17. NOD — two weighted yes-nods: head leads, torso echoes, eyes blink on the beat.
+    // ---------------------------------------------------------------------------------------
+    val NOD = AnimationClip(
+        id = "nod",
+        name = "Nod",
+        durationSeconds = 1.2f,
+        loop = true,
+        category = ClipCategory.ACTION,
+        description = "Two agreement nods with the torso echoing the head.",
+        tracks = mapOf(
+            track(
+                BoneIds.HEAD,
+                k(0.00f, 0f), k(0.14f, 14f, easing = Easing.EASE_OUT), k(0.30f, -6f),
+                k(0.46f, 12f, easing = Easing.EASE_OUT), k(0.62f, -4f),
+                k(0.80f, 0f, easing = Easing.EASE_OUT_BACK), k(1.00f, 0f),
+            ),
+            track(
+                BoneIds.TORSO,
+                k(0.00f, 0f), k(0.20f, 3f), k(0.50f, 2.5f), k(0.84f, 0f), k(1.00f, 0f),
+            ),
+            track(BoneIds.UPPER_ARM_L, k(0.00f, 0f), k(0.25f, -4f), k(0.75f, -4f), k(1.00f, 0f)),
+            track(BoneIds.FOREARM_L, k(0.00f, 0f), k(0.25f, -8f), k(0.75f, -8f), k(1.00f, 0f)),
+            track(BoneIds.UPPER_ARM_R, k(0.00f, 0f), k(0.25f, 4f), k(0.75f, 4f), k(1.00f, 0f)),
+            track(BoneIds.FOREARM_R, k(0.00f, 0f), k(0.25f, 8f), k(0.75f, 8f), k(1.00f, 0f)),
+            track(BoneIds.THIGH_L, k(0f, 0f), k(1f, 0f)),
+            track(BoneIds.THIGH_R, k(0f, 0f), k(1f, 0f)),
+        ),
+        expressionTrack = expressions(
+            0.00f to Expression.NEUTRAL,
+            0.52f to Expression.CLOSED,
+            0.58f to Expression.NEUTRAL,
+        ),
+        mouth = MouthShape.CLOSED,
+    )
+
+    // ---------------------------------------------------------------------------------------
+    // 18. SHAKE HEAD — three "no" turns with counter-rotating shoulders and a steady gaze.
+    // ---------------------------------------------------------------------------------------
+    val SHAKE_HEAD = AnimationClip(
+        id = "shake_head",
+        name = "Shake Head",
+        durationSeconds = 1.3f,
+        loop = true,
+        category = ClipCategory.ACTION,
+        description = "Three refusal turns: head leads, torso counter-rotates slightly.",
+        tracks = mapOf(
+            track(
+                BoneIds.HEAD,
+                k(0.00f, 0f), k(0.12f, -16f, easing = Easing.EASE_OUT), k(0.28f, 14f),
+                k(0.44f, -14f, easing = Easing.EASE_OUT), k(0.60f, 12f),
+                k(0.76f, -8f), k(0.90f, 0f, easing = Easing.EASE_OUT_BACK), k(1.00f, 0f),
+            ),
+            track(
+                BoneIds.TORSO,
+                k(0.00f, 0f), k(0.14f, 2.5f), k(0.46f, -2.5f), k(0.80f, 0f), k(1.00f, 0f),
+            ),
+            track(BoneIds.UPPER_ARM_L, k(0.00f, 0f), k(0.30f, 5f), k(0.70f, 5f), k(1.00f, 0f)),
+            track(BoneIds.UPPER_ARM_R, k(0.00f, 0f), k(0.30f, -5f), k(0.70f, -5f), k(1.00f, 0f)),
+            track(BoneIds.THIGH_L, k(0f, 0f), k(1f, 0f)),
+            track(BoneIds.THIGH_R, k(0f, 0f), k(1f, 0f)),
+        ),
+        mouthTrack = mouths(
+            0.00f to MouthShape.CLOSED,
+            0.30f to MouthShape.SAD,
+            0.82f to MouthShape.CLOSED,
+            1.00f to MouthShape.CLOSED,
+        ),
+    )
+
+    // ---------------------------------------------------------------------------------------
+    // 19. LOOK LEFT / 20. LOOK RIGHT — eyes-first glances with a small torso follow.
+    // ---------------------------------------------------------------------------------------
+    val LOOK_LEFT = AnimationClip(
+        id = "look_left",
+        name = "Look Left",
+        durationSeconds = 2.0f,
+        loop = true,
+        category = ClipCategory.ACTION,
+        description = "Glances to the character's screen-left and returns.",
+        tracks = mapOf(
+            track(
+                BoneIds.TORSO,
+                k(0.00f, 0f), k(0.30f, -7f, easing = Easing.EASE_OUT), k(0.62f, -7f),
+                k(0.90f, 0f, easing = Easing.EASE_IN_OUT_CUBIC), k(1.00f, 0f),
+            ),
+            track(
+                BoneIds.HEAD,
+                k(0.00f, 0f), k(0.16f, -12f, easing = Easing.EASE_OUT), k(0.26f, -24f),
+                k(0.60f, -24f), k(0.88f, 3f, easing = Easing.EASE_OUT_BACK), k(1.00f, 0f),
+            ),
+            track(BoneIds.UPPER_ARM_L, k(0.00f, 0f), k(0.30f, 8f), k(0.65f, 8f), k(1.00f, 0f)),
+            track(BoneIds.UPPER_ARM_R, k(0.00f, 0f), k(0.30f, -8f), k(0.65f, -8f), k(1.00f, 0f)),
+            track(BoneIds.THIGH_L, k(0f, 0f), k(1f, 0f)),
+            track(BoneIds.THIGH_R, k(0f, 0f), k(1f, 0f)),
+        ),
+        mouthTrack = mouths(
+            0.00f to MouthShape.CLOSED,
+            0.28f to MouthShape.NORMAL,
+            0.66f to MouthShape.CLOSED,
+            1.00f to MouthShape.CLOSED,
+        ),
+    )
+
+    val LOOK_RIGHT = AnimationClip(
+        id = "look_right",
+        name = "Look Right",
+        durationSeconds = 2.0f,
+        loop = true,
+        category = ClipCategory.ACTION,
+        description = "Glances to the character's screen-right and returns.",
+        tracks = mapOf(
+            track(
+                BoneIds.TORSO,
+                k(0.00f, 0f), k(0.30f, 7f, easing = Easing.EASE_OUT), k(0.62f, 7f),
+                k(0.90f, 0f, easing = Easing.EASE_IN_OUT_CUBIC), k(1.00f, 0f),
+            ),
+            track(
+                BoneIds.HEAD,
+                k(0.00f, 0f), k(0.16f, 12f, easing = Easing.EASE_OUT), k(0.26f, 24f),
+                k(0.60f, 24f), k(0.88f, -3f, easing = Easing.EASE_OUT_BACK), k(1.00f, 0f),
+            ),
+            track(BoneIds.UPPER_ARM_L, k(0.00f, 0f), k(0.30f, -8f), k(0.65f, -8f), k(1.00f, 0f)),
+            track(BoneIds.UPPER_ARM_R, k(0.00f, 0f), k(0.30f, 8f), k(0.65f, 8f), k(1.00f, 0f)),
+            track(BoneIds.THIGH_L, k(0f, 0f), k(1f, 0f)),
+            track(BoneIds.THIGH_R, k(0f, 0f), k(1f, 0f)),
+        ),
+        mouthTrack = mouths(
+            0.00f to MouthShape.CLOSED,
+            0.28f to MouthShape.NORMAL,
+            0.66f to MouthShape.CLOSED,
+            1.00f to MouthShape.CLOSED,
+        ),
+    )
+
     /** Every clip, in editor display order. */
     val ALL: List<AnimationClip> = listOf(
         IDLE, STAND, WALK, RUN, WALK_TALK,
         SIDE_WALK, SIDE_RUN, SIDE_TALK,
-        TALK, WAVE, LOOK_BACK,
+        TALK, WAVE, POINT, NOD, SHAKE_HEAD, LOOK_LEFT, LOOK_RIGHT, LOOK_BACK,
         HAPPY, SAD, ANGRY, SURPRISED,
         SIT, SLEEP, JUMP,
     )

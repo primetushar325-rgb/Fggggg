@@ -25,6 +25,9 @@ import com.rigstudio.core.rig.Pose
  * @param bitmaps resolves a slot id to its artwork (null when the user never drew that part).
  * @param expressionOverride pins the eyes to one expression instead of following the clip.
  * @param mouthOverride pins the mouth shape instead of following the clip's lip-sync track.
+ * @param poseOverride bones edited in the pose editor (V6 §10): a partial pose pinned on top of
+ *   whatever the clip is doing, so an edited limb stays where the user dragged it while the rest
+ *   of the animation keeps running.
  */
 data class StageSource(
     val rig: CharacterRig,
@@ -33,6 +36,10 @@ data class StageSource(
     val background: StageBackground = StageBackground.DEFAULT,
     val expressionOverride: Expression? = null,
     val mouthOverride: MouthShape? = null,
+    /** V6 §10: partial pose pinned by the pose editor; null = clip untouched. */
+    val poseOverride: Pose? = null,
+    /** V6 §26: manual z-order edits (slot id → z); empty = the rig's authored order. */
+    val zOverrides: Map<String, Int> = emptyMap(),
     /** V5 layer switches for [AnimationEngine.evaluate]; defaults enable the full layer stack. */
     val animation: EvaluateOptions = EvaluateOptions(),
 )
@@ -74,7 +81,8 @@ class PreparedStage internal constructor(
      * new one by blending poses and painting the result through the exact same path).
      */
     fun paintPose(canvas: Canvas, pose: Pose, drawChecker: Boolean = false) {
-        val draws = PuppetComposer.compose(source.rig, pose, camera.transform)
+        val composed = PuppetComposer.compose(source.rig, pose, camera.transform)
+        val draws = PuppetComposer.applyZOverrides(composed, source.zOverrides)
         painter.paint(canvas, width, height, draws, source.bitmaps, source.background, drawChecker)
         _lastDraws = draws
     }
@@ -115,7 +123,11 @@ class PreparedStage internal constructor(
 
     private fun resolvePose(time01: Float): Pose {
         // V5: every consumer (preview, thumbnails, export) samples through the layer engine.
-        val pose = AnimationEngine.evaluate(clip, time01, source.animation)
+        var pose = AnimationEngine.evaluate(clip, time01, source.animation)
+        source.poseOverride?.let { partial ->
+            // V6 §10: pose-editor edits are pinned on top; everything not edited keeps animating.
+            pose = pose.override(partial)
+        }
         val expression = source.expressionOverride
         val mouth = source.mouthOverride
         return if (expression == null && mouth == null) {
