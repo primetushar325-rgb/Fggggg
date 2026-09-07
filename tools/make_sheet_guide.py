@@ -291,6 +291,7 @@ RigStudio নিজে কখনো AI ডাকে না, কিন্তু �
 | `docs/assets/arena-character-sheet.png` | "Mimi" — ভায়োলেট চুল, পোশাক |
 | `docs/assets/arena-character-2-sheet.png` | "Rafi" — স্পাইকি চুল, টি-শার্ট |
 | `docs/assets/arena-character-3-sheet.png` | "Tuni" — চিবি ক্যাট-ইয়ার হুডি, বোল্ড আউটলাইন |
+| `docs/assets/arena-character-4-sheet.png` | "Sadia" — হিজাব পরা মেয়ে, আইভরি কামিজ, গোল্ডেন ফ্ল্যাট |
 
 অ্যাপের ভেতরেও আছে: **Character Template** স্ক্রিন → **Save Template** দিয়ে টেমপ্লেট PNG
 সেভ করে ড্রয়িং অ্যাপে খুলে উপরে আঁকতে পারেন।
