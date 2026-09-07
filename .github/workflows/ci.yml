@@ -56,6 +56,9 @@ jobs:
   apk:
     name: Debug APK (Gradle + Android SDK)
     runs-on: ubuntu-latest
+    permissions:
+      # Publishing the rolling APK release (direct download link) needs repo write.
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -84,3 +87,18 @@ jobs:
         with:
           name: rigstudio-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+      # Rolling release: every green build replaces the APK behind one permanent direct link —
+      #   https://github.com/<repo>/releases/download/v6-latest/rigstudio-debug.apk
+      # (Skipped for fork PRs, whose token is read-only.)
+      - name: Publish APK to the rolling release (direct download)
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v6-latest"
+          gh release delete "$TAG" --cleanup-tag -y || true
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "RigStudio debug APK (latest build)" \
+            --notes "Auto-published by CI run $GITHUB_RUN_ID. Offline installable debug build; the same code that passed all engine tests. Direct link stays the same — it always serves the newest green build." \
+            "app/build/outputs/apk/debug/app-debug.apk#rigstudio-debug.apk"
