@@ -420,6 +420,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
         _state.update { state ->
             state.copy(
                 userClips = state.userClips + clip,
+                clips = state.clips + clip.toAnimationClip(),
                 keyframes = emptyList(),
             )
         }
@@ -452,7 +453,12 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching { store.saveUserClips(loadedCharacter.project.id, remaining) }
         }
-        _state.update { it.copy(userClips = remaining) }
+        _state.update {
+            it.copy(
+                userClips = remaining,
+                clips = it.clips.filterNot { clip -> clip.id == clipId },
+            )
+        }
     }
 
     /** Mirror Animation (V6 §56): saves and plays the L↔R remapped copy of a user animation. */
@@ -472,7 +478,12 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
             }
         }
         _state.update { state ->
-            state.copy(userClips = state.userClips.filterNot { it.id == clip.id } + clip)
+            val converted = clip.toAnimationClip()
+            val withoutOld = state.clips.filterNot { it.id == clip.id }
+            state.copy(
+                userClips = state.userClips.filterNot { it.id == clip.id } + clip,
+                clips = withoutOld + converted,
+            )
         }
         playUserClip(clip.id)
     }
