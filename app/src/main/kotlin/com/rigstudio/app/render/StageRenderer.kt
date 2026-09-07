@@ -11,6 +11,7 @@ import com.rigstudio.core.render.Camera
 import com.rigstudio.core.render.Framing
 import com.rigstudio.core.render.PuppetComposer
 import com.rigstudio.core.render.PuppetDraw
+import com.rigstudio.core.rig.AccessoryDef
 import com.rigstudio.core.rig.CharacterRig
 import com.rigstudio.core.rig.Pose
 
@@ -40,6 +41,8 @@ data class StageSource(
     val poseOverride: Pose? = null,
     /** V6 §26: manual z-order edits (slot id → z); empty = the rig's authored order. */
     val zOverrides: Map<String, Int> = emptyMap(),
+    /** V6 props/accessories riding the rig (bitmaps resolve through [bitmaps] by id). */
+    val accessories: List<AccessoryDef> = emptyList(),
     /** V5 layer switches for [AnimationEngine.evaluate]; defaults enable the full layer stack. */
     val animation: EvaluateOptions = EvaluateOptions(),
 )
@@ -81,7 +84,7 @@ class PreparedStage internal constructor(
      * new one by blending poses and painting the result through the exact same path).
      */
     fun paintPose(canvas: Canvas, pose: Pose, drawChecker: Boolean = false) {
-        val composed = PuppetComposer.compose(source.rig, pose, camera.transform)
+        val composed = PuppetComposer.compose(source.rig, pose, camera.transform, source.accessories)
         val draws = PuppetComposer.applyZOverrides(composed, source.zOverrides)
         painter.paint(canvas, width, height, draws, source.bitmaps, source.background, drawChecker)
         _lastDraws = draws

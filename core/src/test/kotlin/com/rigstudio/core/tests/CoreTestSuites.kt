@@ -29,6 +29,7 @@ object CoreTestSuites {
         "Two-bone IK solver" to TwoBoneIkTests.cases,
         "User content (custom clips, pose library)" to UserContentTests.cases,
         "Interactive pose editing (FK + IK)" to PoseEditingTests.cases,
+        "Props & accessories" to AccessoryTests.cases,
     )
 
     val totalTests: Int get() = suites.sumOf { it.second.size }

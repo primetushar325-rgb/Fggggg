@@ -97,8 +97,9 @@ jobs:
         run: |
           TAG="v6-latest"
           gh release delete "$TAG" --cleanup-tag -y || true
+          cp app/build/outputs/apk/debug/app-debug.apk rigstudio-debug.apk
           gh release create "$TAG" \
             --target "$GITHUB_SHA" \
             --title "RigStudio debug APK (latest build)" \
             --notes "Auto-published by CI run $GITHUB_RUN_ID. Offline installable debug build; the same code that passed all engine tests. Direct link stays the same — it always serves the newest green build." \
-            "app/build/outputs/apk/debug/app-debug.apk#rigstudio-debug.apk"
+            rigstudio-debug.apk

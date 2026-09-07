@@ -152,6 +152,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
             val project = loadedCharacter.project
             val userPoses = withContext(Dispatchers.IO) { store.loadPoses(projectId) }
             val userClips = withContext(Dispatchers.IO) { store.loadUserClips(projectId) }
+            val accessories = withContext(Dispatchers.IO) { store.loadAccessories(projectId) }
             val views = loadedCharacter.availableViews.ifEmpty { listOf(ViewKind.FRONT) }
             val startView = project.lastView.takeIf { it in views } ?: ViewKind.FRONT
             val clips = AnimationLibrary.playableIn(startView, loadedCharacter.hasProfileArtwork) +
@@ -184,6 +185,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
                     userPoses = userPoses,
                     userClips = userClips,
                     zOrderOverrides = project.zOrderOverrides,
+                    accessories = accessories,
                 )
             }
             cameraZoom = project.lastCameraZoom
@@ -632,6 +634,110 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
         }
     }
 
+
+    // --- props & accessories (V6: attach Head/Hand/Torso/Foot, live transform) -------------------
+
+    /** Imports an image as an accessory attached to [attachBoneId] (default: the head). */
+    fun importAccessory(uri: Uri, attachBoneId: String = "head") {
+        val loadedCharacter = character ?: return
+        viewModelScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                runCatching {
+                    app.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)?.downscaleTo(1024)
+                    }
+                }.getOrNull()
+            }
+            if (bitmap == null) {
+                _state.update { it.copy(message = "That image could not be used as an accessory.") }
+                return@launch
+            }
+            val id = "acc_${System.currentTimeMillis() % 100_000}"
+            val accessory = com.rigstudio.core.rig.AccessoryDef(
+                id = id,
+                name = "Accessory ${_state.value.accessories.size + 1}",
+                fileName = "accessories/$id.png",
+                widthPx = bitmap.width,
+                heightPx = bitmap.height,
+                pivotX = 0.5f,
+                pivotY = 1f,
+                attachBoneId = attachBoneId,
+                anchorX = 0.5f,
+                anchorY = 0f,
+                targetHeight = 0.18f,
+                z = 80,
+            )
+            val saved = withContext(Dispatchers.IO) {
+                runCatching { store.addAccessory(loadedCharacter.project.id, accessory, bitmap) }
+                    .getOrNull()
+            }
+            if (saved == null) {
+                _state.update { it.copy(message = "The accessory could not be saved.") }
+                return@launch
+            }
+            _state.update {
+                it.copy(
+                    accessories = it.accessories + saved,
+                    selectedAccessoryId = saved.id,
+                    message = "${saved.name} added — drag the sliders to fit it.",
+                )
+            }
+            publishStage()
+        }
+    }
+
+    fun selectAccessory(accessoryId: String?) {
+        _state.update { it.copy(selectedAccessoryId = accessoryId) }
+    }
+
+    /** Re-attaches an accessory to a different bone (Head / Torso / Hand / Foot / custom). */
+    fun setAccessoryAttach(accessoryId: String, boneId: String) = updateAccessory(accessoryId) {
+        it.copy(attachBoneId = boneId)
+    }
+
+    fun setAccessoryTransform(
+        accessoryId: String,
+        rotationDeg: Float? = null,
+        scale: Float? = null,
+        targetHeight: Float? = null,
+        z: Int? = null,
+    ) = updateAccessory(accessoryId) { current ->
+        current.copy(
+            rotationDeg = rotationDeg ?: current.rotationDeg,
+            scale = (scale ?: current.scale).coerceIn(0.05f, 4f),
+            targetHeight = (targetHeight ?: current.targetHeight).coerceIn(0.02f, 1.2f),
+            z = z ?: current.z,
+        )
+    }
+
+    fun deleteAccessory(accessoryId: String) {
+        val loadedCharacter = character ?: return
+        val remaining = _state.value.accessories.filterNot { it.id == accessoryId }
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { store.deleteAccessory(loadedCharacter.project.id, accessoryId) }
+        }
+        _state.update {
+            it.copy(
+                accessories = remaining,
+                selectedAccessoryId = if (it.selectedAccessoryId == accessoryId) null else it.selectedAccessoryId,
+            )
+        }
+        publishStage()
+    }
+
+    /** Applies an edit and persists + repaints; accessory edits are real file-backed operations. */
+    private fun updateAccessory(accessoryId: String, edit: (com.rigstudio.core.rig.AccessoryDef) -> com.rigstudio.core.rig.AccessoryDef) {
+        val loadedCharacter = character ?: return
+        val current = _state.value.accessories.firstOrNull { it.id == accessoryId } ?: return
+        val updated = edit(current)
+        val list = _state.value.accessories.map { if (it.id == accessoryId) updated else it }
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { store.saveAccessories(loadedCharacter.project.id, list) }
+        }
+        _state.update { it.copy(accessories = list) }
+        publishStage()
+    }
+
     /** Restores the pose-editing slice of a snapshot (undo/redo path). */
     private fun restorePoseEditing(snapshot: EditorSnapshot) {
         poseOverride = snapshot.poseOverride
@@ -994,6 +1100,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
             mouthOverride = current.mouthOverride,
             poseOverride = poseOverride,
             zOverrides = current.zOrderOverrides,
+            accessories = current.accessories,
         )
     }
 

@@ -61,6 +61,9 @@ data class EditorState(
     val clipboardPose: com.rigstudio.core.anim.PosePreset? = null,
     /** Manual z-order edits in effect (slot id → z). */
     val zOrderOverrides: Map<String, Int> = emptyMap(),
+    /** Props/accessories on the character (V6): hats, hand items, capes… */
+    val accessories: List<com.rigstudio.core.rig.AccessoryDef> = emptyList(),
+    val selectedAccessoryId: String? = null,
     /** Slot tapped on the stage in Pose Mode, target of the layer tools (V6 §26). */
     val selectedSlotId: String? = null,
     /** Rig inspector data for the selected part (V6 Rig Mode). */

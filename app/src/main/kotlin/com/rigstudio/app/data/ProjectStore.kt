@@ -16,6 +16,8 @@ import com.rigstudio.core.model.CharacterProject
 import com.rigstudio.core.model.ProjectCodec
 import com.rigstudio.core.model.SpriteManifestEntry
 import com.rigstudio.core.model.ViewKind
+import com.rigstudio.core.rig.AccessoryCodec
+import com.rigstudio.core.rig.AccessoryDef
 import com.rigstudio.core.rig.CharacterRig
 import com.rigstudio.core.rig.RigBuilder
 import com.rigstudio.core.rig.ViewAvailability
@@ -101,6 +103,60 @@ class ProjectStore(private val context: Context) {
     fun posesFile(projectId: String): File = File(directoryFor(projectId), USER_POSES_NAME)
 
     fun animationsFile(projectId: String): File = File(directoryFor(projectId), USER_ANIMATIONS_NAME)
+
+    // --- props & accessories (V6) --------------------------------------------------------------
+
+    fun accessoriesFile(projectId: String): File = File(directoryFor(projectId), ACCESSORIES_NAME)
+
+    fun accessoryDir(projectId: String): File = File(directoryFor(projectId), "accessories")
+
+    fun accessoryBitmapFile(projectId: String, accessoryId: String): File =
+        File(accessoryDir(projectId), "$accessoryId.png")
+
+    /** The project's accessory definitions; missing or damaged files read as "none yet". */
+    fun loadAccessories(projectId: String): List<AccessoryDef> {
+        val file = accessoriesFile(projectId)
+        if (!file.isFile) return emptyList()
+        return runCatching { AccessoryCodec.decodeJsonOrNull(file.readText(Charsets.UTF_8)) }
+            .getOrNull() ?: emptyList()
+    }
+
+    /** Saves the accessory manifest atomically. */
+    fun saveAccessories(projectId: String, accessories: List<AccessoryDef>) {
+        writeTextAtomically(accessoriesFile(projectId), AccessoryCodec.encodeJson(accessories))
+    }
+
+    /**
+     * Imports an accessory: writes the PNG beside the project and appends the definition.
+     * Returns the stored definition (with its final id).
+     */
+    fun addAccessory(
+        projectId: String,
+        accessory: AccessoryDef,
+        bitmap: Bitmap,
+    ): AccessoryDef {
+        val dir = accessoryDir(projectId)
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw ProjectStoreException("Could not create the accessories folder.")
+        }
+        writePng(bitmap, accessoryBitmapFile(projectId, accessory.id))
+        val updated = loadAccessories(projectId).filterNot { it.id == accessory.id } + accessory
+        saveAccessories(projectId, updated)
+        evictAccessory(projectId, accessory.id)
+        return accessory
+    }
+
+    fun deleteAccessory(projectId: String, accessoryId: String): List<AccessoryDef> {
+        accessoryBitmapFile(projectId, accessoryId).delete()
+        val remaining = loadAccessories(projectId).filterNot { it.id == accessoryId }
+        saveAccessories(projectId, remaining)
+        evictAccessory(projectId, accessoryId)
+        return remaining
+    }
+
+    private fun evictAccessory(projectId: String, accessoryId: String) {
+        spriteCache.remove("$projectId/$accessoryId")
+    }
 
     /** User-saved poses for a project; missing or damaged files read as "none yet". */
     fun loadPoses(projectId: String): List<PosePreset> {
@@ -209,8 +265,13 @@ class ProjectStore(private val context: Context) {
     fun spriteBitmap(project: CharacterProject, slotId: String): Bitmap? {
         val key = "${project.id}/$slotId"
         spriteCache.get(key)?.let { return it }
-        val entry = project.sprites.firstOrNull { it.slotId == slotId } ?: return null
-        val file = File(directoryFor(project.id), entry.fileName)
+        val entry = project.sprites.firstOrNull { it.slotId == slotId }
+        val file = if (entry != null) {
+            File(directoryFor(project.id), entry.fileName)
+        } else {
+            // Not a body slot: try the accessory with this id (props share the bitmap cache).
+            accessoryBitmapFile(project.id, slotId)
+        }
         if (!file.isFile) return null
         val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return null
         spriteCache.put(key, bitmap)
@@ -376,6 +437,7 @@ class ProjectStore(private val context: Context) {
         /** User content documents (V6 §39): versioned, atomic, one concern per file. */
         const val USER_POSES_NAME = "poses.json"
         const val USER_ANIMATIONS_NAME = "animations.json"
+        const val ACCESSORIES_NAME = "accessories.json"
 
         fun newProjectId(nowEpochMillis: Long): String =
             "char_%d_%04d".format(nowEpochMillis, (0..9999).random())

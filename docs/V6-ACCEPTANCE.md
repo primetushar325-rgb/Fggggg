@@ -36,8 +36,10 @@ tests (`bash tools/verify_all.sh`).
 | 28 | Export MP4 4K 60 fps | Same pipeline, only resolution/framerate differ | Manual |
 | 29 | Export transparent → MP4 | Clear error; PNG sequence offered for alpha | Manual / ExportTests |
 | 30 | Chroma key green/blue/custom export | Solid background exported exactly | Manual / ExportTests |
-| 31 | Reopen a project | Rig rebuilt from manifest; camera, z-order, poses, animations restored | Manual / ProjectTests (schema 6) |
+| 31 | Reopen a project | Rig rebuilt from manifest; camera, z-order, poses, animations, accessories restored | Manual / ProjectTests (schema 6) |
 | 32 | Enable the debug overlay | Bones, pivots, bounds, z-order badges, IK chains, FPS | Manual |
+| 33 | Import a hat PNG → attach Head → rotate head | Hat rides the head through every animation | Manual / AccessoryTests |
+| 34 | Attach a sword to a hand, size/rotate/layer it | Follows the arm chain; exported MP4 shows it | Manual / AccessoryTests |
 
 ## Status legend
 
@@ -47,5 +49,6 @@ tests (`bash tools/verify_all.sh`).
 ## Current state (2026-09-07)
 
 Engine foundations shipped and green: IK solver, pose editing, user keyframes/clips, pose
-library, z-order overrides, schemaVersion 6 persistence with forward migration, 4K/60 export
-settings, 23-clip library. Remaining UI-first steps: on-device pass of the Manual rows.
+library, z-order overrides, props/accessories (attach + follow + export), schemaVersion 6
+persistence with forward migration, 4K/60 export settings, 23-clip library, rig inspector.
+Remaining UI-first steps: on-device pass of the Manual rows.

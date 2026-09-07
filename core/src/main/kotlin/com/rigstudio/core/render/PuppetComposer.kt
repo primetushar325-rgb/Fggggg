@@ -2,13 +2,16 @@ package com.rigstudio.core.render
 
 import com.rigstudio.core.geom.Affine
 import com.rigstudio.core.geom.FloatRect
+import com.rigstudio.core.geom.Vec2
 import com.rigstudio.core.model.BoneIds
+import com.rigstudio.core.rig.AccessoryDef
 import com.rigstudio.core.rig.CharacterRig
 import com.rigstudio.core.rig.FaceSet
 import com.rigstudio.core.rig.FkSolution
 import com.rigstudio.core.rig.ForwardKinematics
 import com.rigstudio.core.rig.Pose
 import com.rigstudio.core.rig.SpriteAsset
+import com.rigstudio.core.util.MathUtils
 
 /** What a draw call is for: body artwork, or one of the face overlays. */
 enum class PuppetPart { BODY, EYES, MOUTH }
@@ -54,9 +57,10 @@ object PuppetComposer {
         rig: CharacterRig,
         pose: Pose,
         viewTransform: Affine = Affine.IDENTITY,
+        accessories: List<AccessoryDef> = emptyList(),
     ): List<PuppetDraw> {
         val solution = ForwardKinematics.solve(rig, pose, viewTransform)
-        val draws = ArrayList<PuppetDraw>(solution.draws.size + 2)
+        val draws = ArrayList<PuppetDraw>(solution.draws.size + 2 + accessories.size)
 
         for (draw in solution.draws) {
             val sprite = draw.bone.sprite ?: continue
@@ -71,7 +75,63 @@ object PuppetComposer {
             )
         }
         draws += faceDraws(rig, solution, pose)
+        draws += accessoryDraws(rig, solution, accessories)
         draws.sortWith(compareBy({ it.z }, { it.slotId }))
+        return draws
+    }
+
+    /**
+     * Props/accessories (V6): each one inherits its host bone's full animated transform — the
+     * same chain that paints the limb — then adds the user's own rotation/offset/scale on top.
+     * A hat follows the head through walk, run and pose-editor drags with no extra keyframes.
+     */
+    private fun accessoryDraws(
+        rig: CharacterRig,
+        solution: FkSolution,
+        accessories: List<AccessoryDef>,
+    ): List<PuppetDraw> {
+        if (accessories.isEmpty()) return emptyList()
+        val draws = ArrayList<PuppetDraw>(accessories.size)
+        for (accessory in accessories) {
+            val bone = rig.bone(accessory.attachBoneId) ?: continue
+            val boneWorld = solution.transformOf(bone.id)
+            val restRect = bone.restRect
+            if (restRect.isEmpty()) continue
+
+            // The joint inside the host bone (fractions of its rest rect, y down).
+            val anchor = Vec2(
+                restRect.left + accessory.anchorX * restRect.width,
+                restRect.top + accessory.anchorY * restRect.height,
+            )
+            // Same local formulation as a bone: rotate/scale about the anchor, offset the joint.
+            var local = Affine.translation(anchor.x + accessory.offsetX, anchor.y + accessory.offsetY)
+                .multiply(Affine.rotation(MathUtils.degToRad(accessory.rotationDeg)))
+            if (accessory.scale != 1f) {
+                local = local.multiply(Affine.scaling(accessory.scale))
+            }
+            local = local.multiply(Affine.translation(-anchor.x, -anchor.y))
+            val world = boneWorld.multiply(local)
+
+            // Accessory art rect in bone rest space, placed by its own pivot at the anchor.
+            val sprite = accessory.toSpriteAsset()
+            val h = accessory.targetHeight
+            val w = h * sprite.aspect
+            val rect = FloatRect(
+                left = anchor.x + accessory.offsetX - accessory.pivotX * w,
+                top = anchor.y + accessory.offsetY - accessory.pivotY * h,
+                right = anchor.x + accessory.offsetX + (1f - accessory.pivotX) * w,
+                bottom = anchor.y + accessory.offsetY + (1f - accessory.pivotY) * h,
+            )
+            draws += PuppetDraw(
+                slotId = accessory.id,
+                sprite = sprite,
+                world = world,
+                restRect = rect,
+                z = accessory.z,
+                shade = 1f,
+                part = PuppetPart.BODY,
+            )
+        }
         return draws
     }
 

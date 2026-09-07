@@ -297,6 +297,11 @@ fun EditorScreen(
                     viewModel = viewModel,
                 )
 
+                AccessoriesCard(
+                    state = state,
+                    viewModel = viewModel,
+                )
+
                 if (state.expressions.isNotEmpty() || state.mouthShapes.isNotEmpty()) {
                     FaceCard(
                         state = state,
@@ -1300,3 +1305,92 @@ private fun RigInspectorCard(
         }
     }
 }
+
+/**
+ * Props & accessories (V6): import a PNG, attach it to Head / Torso / Hand / Foot, then size,
+ * rotate and layer it. Everything is file-backed (accessories.json + PNGs) and renders through
+ * the same pipeline as preview and export.
+ */
+@Composable
+private fun AccessoriesCard(
+    state: EditorState,
+    viewModel: EditorViewModel,
+) {
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importAccessory(uri)
+    }
+    SectionCard(
+        title = "Props & accessories",
+        trailing = {
+            RigChip(label = "Import image", selected = false, onClick = { picker.launch(arrayOf("image/*")) })
+        },
+    ) {
+        if (state.accessories.isEmpty()) {
+            Text(
+                text = "Import any transparent PNG — hats, glasses, swords, capes. It attaches to a body part and follows every animation automatically.",
+                style = MaterialTheme.typography.bodySmall,
+                color = RigColors.TextSecondary,
+            )
+        }
+        for (accessory in state.accessories) {
+            val selected = state.selectedAccessoryId == accessory.id
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.selectAccessory(accessory.id) }
+                    .padding(vertical = 6.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = accessory.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (selected) RigColors.Primary else RigColors.TextPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    RigTextButton(text = "Delete", onClick = { viewModel.deleteAccessory(accessory.id) })
+                }
+                if (selected) {
+                    FieldLabel("Attach to")
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        for ((boneId, label) in com.rigstudio.core.rig.AttachPoints.STANDARD) {
+                            RigChip(
+                                label = label,
+                                selected = accessory.attachBoneId == boneId,
+                                onClick = { viewModel.setAccessoryAttach(accessory.id, boneId) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    FieldLabel("Size ${"%.0f".format(accessory.targetHeight * 100)}% of body height")
+                    Slider(
+                        value = accessory.targetHeight,
+                        onValueChange = { value ->
+                            viewModel.setAccessoryTransform(accessory.id, targetHeight = value)
+                        },
+                        valueRange = 0.02f..0.6f,
+                    )
+                    FieldLabel("Rotation ${"%.0f".format(accessory.rotationDeg)}°")
+                    Slider(
+                        value = accessory.rotationDeg,
+                        onValueChange = { value ->
+                            viewModel.setAccessoryTransform(accessory.id, rotationDeg = value)
+                        },
+                        valueRange = -180f..180f,
+                    )
+                    FieldLabel("Layer (z ${accessory.z})")
+                    Slider(
+                        value = accessory.z.toFloat(),
+                        onValueChange = { value ->
+                            viewModel.setAccessoryTransform(accessory.id, z = value.toInt())
+                        },
+                        valueRange = 0f..120f,
+                    )
+                }
+            }
+        }
+    }
+}
+
