@@ -133,6 +133,29 @@ enum class LayerAction(val label: String) {
 }
 
 /**
+ * One-tap face combos (V6 Face Mode): a matched eye + mouth pair applied together. Only the
+ * parts the character actually has are applied, so presets never promise artwork that is not there.
+ */
+data class FacePreset(
+    val id: String,
+    val label: String,
+    val expression: Expression?,
+    val mouth: MouthShape?,
+)
+
+/** The quick panel's presets. `null` keeps whatever the other control has. */
+val FACE_PRESETS: List<FacePreset> = listOf(
+    FacePreset("happy", "Happy", Expression.HAPPY, MouthShape.SMILE),
+    FacePreset("sad", "Sad", Expression.SAD, MouthShape.SAD),
+    FacePreset("angry", "Angry", Expression.ANGRY, MouthShape.ANGRY),
+    FacePreset("surprised", "Surprised", Expression.NEUTRAL, MouthShape.SURPRISED),
+    FacePreset("shout", "Shout", Expression.NEUTRAL, MouthShape.O),
+    FacePreset("grin", "Grin", Expression.HAPPY, MouthShape.E),
+    FacePreset("talk", "Talk", Expression.NEUTRAL, MouthShape.NORMAL),
+    FacePreset("calm", "Calm", Expression.NEUTRAL, MouthShape.CLOSED),
+)
+
+/**
  * Rig Mode inspector row (V6): the anatomy of the tapped part — bone id, parent, length in view
  * units, current rotation and the constraint range the pose editor enforces.
  */

@@ -74,6 +74,7 @@ import com.rigstudio.app.R
 import com.rigstudio.app.editor.EDITOR_BACKGROUND_PRESETS
 import com.rigstudio.app.editor.EditorNavigation
 import com.rigstudio.app.editor.EditorState
+import com.rigstudio.app.editor.FACE_PRESETS
 import com.rigstudio.app.editor.LayerAction
 import com.rigstudio.app.editor.EditorViewModel
 import com.rigstudio.app.editor.TransportAction
@@ -307,6 +308,7 @@ fun EditorScreen(
                         state = state,
                         onExpression = viewModel::setExpression,
                         onMouth = viewModel::setMouth,
+                        onPreset = viewModel::applyFacePreset,
                     )
                 }
 
@@ -867,8 +869,23 @@ private fun FaceCard(
     state: EditorState,
     onExpression: (Expression?) -> Unit,
     onMouth: (MouthShape?) -> Unit,
+    onPreset: (String) -> Unit = {},
 ) {
     SectionCard(title = stringResource(R.string.editor_expression)) {
+        // V6 Face Mode: one-tap eye+mouth combos before the individual controls.
+        FieldLabel("Quick presets")
+        Spacer(Modifier.height(6.dp))
+        ChipStrip {
+            FACE_PRESETS.forEach { preset ->
+                RigChip(
+                    label = preset.label,
+                    selected = state.expressionOverride == preset.expression &&
+                        state.mouthOverride == preset.mouth,
+                    onClick = { onPreset(preset.id) },
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         if (state.expressions.isNotEmpty()) {
             FieldLabel("Eyes (overrides the clip)")
             Spacer(Modifier.height(6.dp))

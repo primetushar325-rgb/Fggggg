@@ -1003,6 +1003,33 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
         publishStage()
     }
 
+    /**
+     * Face Mode quick preset (V6): applies a matched eye + mouth pair in one tap. Parts whose
+     * artwork this sheet lacks are skipped with a message instead of silently failing.
+     */
+    fun applyFacePreset(presetId: String) {
+        val preset = com.rigstudio.app.editor.FACE_PRESETS.firstOrNull { it.id == presetId } ?: return
+        val current = _state.value
+        val expression = preset.expression?.takeIf { it in current.expressions }
+        val mouth = preset.mouth?.takeIf { it in current.mouthShapes }
+        if (preset.expression != null && expression == null) {
+            _state.update { it.copy(message = "This character sheet has no ${preset.expression.displayName} eyes.") }
+            return
+        }
+        if (preset.mouth != null && mouth == null) {
+            _state.update { it.copy(message = "This character sheet has no ${preset.mouth.displayName} mouth.") }
+            return
+        }
+        recordHistory()
+        _state.update {
+            it.copy(
+                expressionOverride = expression ?: it.expressionOverride,
+                mouthOverride = mouth ?: it.mouthOverride,
+            )
+        }
+        publishStage()
+    }
+
     /** Pins the mouth shape instead of following the clip's lip-sync track. */
     fun setMouth(shape: MouthShape?) {
         if (shape != null && shape !in _state.value.mouthShapes) {
