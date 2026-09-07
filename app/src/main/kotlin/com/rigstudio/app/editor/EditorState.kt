@@ -63,6 +63,8 @@ data class EditorState(
     val zOrderOverrides: Map<String, Int> = emptyMap(),
     /** Slot tapped on the stage in Pose Mode, target of the layer tools (V6 §26). */
     val selectedSlotId: String? = null,
+    /** Rig inspector data for the selected part (V6 Rig Mode). */
+    val selectedBone: SelectedBoneInfo? = null,
 
     val playing: Boolean = false,
     val normalizedTime: Float = 0f,
@@ -126,6 +128,21 @@ enum class LayerAction(val label: String) {
     BACK("Send to back"),
     CLEAR("Reset layer"),
 }
+
+/**
+ * Rig Mode inspector row (V6): the anatomy of the tapped part — bone id, parent, length in view
+ * units, current rotation and the constraint range the pose editor enforces.
+ */
+data class SelectedBoneInfo(
+    val boneId: String,
+    val slotId: String,
+    val parentBoneId: String?,
+    val lengthViewUnits: Float,
+    val parentLengthViewUnits: Float?,
+    val rotationDeg: Float,
+    val minRotationDeg: Float,
+    val maxRotationDeg: Float,
+)
 
 /**
  * A named background preset for the editor's background picker.

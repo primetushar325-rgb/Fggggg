@@ -74,6 +74,7 @@ import com.rigstudio.app.R
 import com.rigstudio.app.editor.EDITOR_BACKGROUND_PRESETS
 import com.rigstudio.app.editor.EditorNavigation
 import com.rigstudio.app.editor.EditorState
+import com.rigstudio.app.editor.LayerAction
 import com.rigstudio.app.editor.EditorViewModel
 import com.rigstudio.app.editor.TransportAction
 import com.rigstudio.app.render.StageBackground
@@ -287,6 +288,11 @@ fun EditorScreen(
                 )
 
                 ZOrderCard(
+                    state = state,
+                    viewModel = viewModel,
+                )
+
+                RigInspectorCard(
                     state = state,
                     viewModel = viewModel,
                 )
@@ -1245,6 +1251,52 @@ private fun ZOrderCard(
                     enabled = state.selectedSlotId != null,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Rig Mode inspector (V6): the tapped part's bone anatomy with a live rotation dial, clamped to
+ * the bone's constraint range.
+ */
+@Composable
+private fun RigInspectorCard(
+    state: EditorState,
+    viewModel: EditorViewModel,
+) {
+    val bone = state.selectedBone
+    SectionCard(title = "Rig inspector") {
+        if (bone == null) {
+            Text(
+                text = "In Pose Mode, tap a part on the stage to inspect its bone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = RigColors.TextSecondary,
+            )
+        } else {
+            Text(
+                text = bone.boneId,
+                style = MaterialTheme.typography.titleSmall,
+                color = RigColors.TextPrimary,
+            )
+            Text(
+                text = "parent: ${bone.parentBoneId ?: "root"} · length: ${"%.3f".format(bone.lengthViewUnits)} view units" +
+                    (bone.parentLengthViewUnits?.let { " (parent %.3f)".format(it) } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                color = RigColors.TextSecondary,
+            )
+            Spacer(Modifier.height(8.dp))
+            FieldLabel(
+                "Rotation ${"%.0f".format(bone.rotationDeg)}° " +
+                    "(limits ${"%.0f".format(bone.minRotationDeg)}° to ${"%.0f".format(bone.maxRotationDeg)}°)",
+            )
+            Slider(
+                value = bone.rotationDeg,
+                onValueChange = { value ->
+                    viewModel.rotateSelectedBone(value)
+                },
+                valueRange = bone.minRotationDeg..bone.maxRotationDeg,
+                onValueChangeFinished = { viewModel.beginBoneRotationEdit() },
+            )
         }
     }
 }

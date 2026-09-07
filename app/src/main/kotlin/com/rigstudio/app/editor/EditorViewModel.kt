@@ -535,9 +535,57 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
 
     // --- z-order editing (V6 §26) -------------------------------------------------------------------
 
-    /** The slot the user tapped on the stage in Pose Mode, for the layer tools. */
+    /**
+     * The slot the user tapped on the stage in Pose Mode: drives both the layer tools and the
+     * rig inspector (V6 Rig Mode: name / parent / length / rotation / limits).
+     */
     fun setSelectedSlot(slotId: String?) {
-        _state.update { it.copy(selectedSlotId = slotId) }
+        val info = slotId?.let { id -> boneInfoFor(id) }
+        _state.update { it.copy(selectedSlotId = slotId, selectedBone = info) }
+    }
+
+    private fun boneInfoFor(slotId: String): SelectedBoneInfo? {
+        val rig = character?.rigFor(_state.value.view) ?: return null
+        val bone = rig.bones.firstOrNull { it.sprite?.slotId == slotId } ?: return null
+        val parentId = bone.parentId
+        val parentLength = rig.bone(parentId ?: "")?.targetHeight
+        val pose = poseOverride ?: Pose()
+        return SelectedBoneInfo(
+            boneId = bone.id,
+            slotId = slotId,
+            parentBoneId = parentId,
+            lengthViewUnits = bone.targetHeight,
+            parentLengthViewUnits = parentLength,
+            rotationDeg = pose.rotationOf(bone.id),
+            minRotationDeg = bone.constraint.minRotationDeg,
+            maxRotationDeg = bone.constraint.maxRotationDeg,
+        )
+    }
+
+    /**
+     * Rig Mode editing: sets the selected bone's rotation directly (the inspector's dial),
+     * clamped to the bone's constraint range, as one undo step per committed drag segment.
+     */
+    fun rotateSelectedBone(degrees: Float) {
+        val info = _state.value.selectedBone ?: return
+        val rig = character?.rigFor(_state.value.view) ?: return
+        val bone = rig.bone(info.boneId) ?: return
+        val clamped = degrees.coerceIn(bone.constraint.minRotationDeg, bone.constraint.maxRotationDeg)
+        val current = poseOverride ?: Pose()
+        val edited = current.copy(
+            bones = current.bones + mapOf(
+                bone.id to current.poseOf(bone.id).copy(rotationDeg = clamped),
+            ),
+        )
+        poseOverride = edited
+        _state.update {
+            it.copy(selectedBone = it.selectedBone?.copy(rotationDeg = clamped))
+        }
+        publishStage()
+    }
+
+    fun beginBoneRotationEdit() {
+        recordHistory()
     }
 
     /** Applies one of the four layer moves to the selected slot (or clears its override). */
