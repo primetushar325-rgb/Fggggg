@@ -1,0 +1,46 @@
+# --- Gradle / Android (RigStudio V3) ---
+.gradle/
+build/
+local.properties
+key.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+app/release/
+app/debug/
+
+# --- IDE ---
+*.iml
+.idea/
+.vscode/
+
+# --- Kotlin ---
+.kotlin/
+
+# --- legacy Flutter app (V1/V2, kept under legacy/v2-flutter/) ---
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+legacy/v2-flutter/android/.gradle/
+legacy/v2-flutter/android/local.properties
+legacy/v2-flutter/android/key.properties
+legacy/v2-flutter/ios/Pods/
+legacy/v2-flutter/ios/.symlinks/
+legacy/v2-flutter/ios/Flutter/Flutter.framework/
+legacy/v2-flutter/ios/Flutter/Flutter.podspec
+legacy/v2-flutter/ios/Flutter/App.framework/
+legacy/v2-flutter/ios/Flutter/ephemeral/
+legacy/v2-flutter/ios/Runner/GeneratedPluginRegistrant.*
+legacy/v2-flutter/.flutter-plugins-dependencies
+
+# --- misc ---
+dist/
+.DS_Store
+*.log
+__pycache__/
+*.pyc
