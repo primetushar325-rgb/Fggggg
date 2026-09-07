@@ -75,7 +75,7 @@ object PuppetComposer {
             )
         }
         draws += faceDraws(rig, solution, pose)
-        draws += accessoryDraws(rig, solution, accessories)
+        draws += accessoryDraws(rig, solution, pose, accessories)
         draws.sortWith(compareBy({ it.z }, { it.slotId }))
         return draws
     }
@@ -88,6 +88,7 @@ object PuppetComposer {
     private fun accessoryDraws(
         rig: CharacterRig,
         solution: FkSolution,
+        pose: Pose,
         accessories: List<AccessoryDef>,
     ): List<PuppetDraw> {
         if (accessories.isEmpty()) return emptyList()
@@ -98,16 +99,23 @@ object PuppetComposer {
             val restRect = bone.restRect
             if (restRect.isEmpty()) continue
 
+            // Animated state (V6: props with keyframes) overrides the definition's transform.
+            val state = pose.accessories[accessory.id]
+            val rotationDeg = state?.rotationDeg ?: accessory.rotationDeg
+            val offsetX = state?.offsetX ?: accessory.offsetX
+            val offsetY = state?.offsetY ?: accessory.offsetY
+            val scale = state?.scale ?: accessory.scale
+
             // The joint inside the host bone (fractions of its rest rect, y down).
             val anchor = Vec2(
                 restRect.left + accessory.anchorX * restRect.width,
                 restRect.top + accessory.anchorY * restRect.height,
             )
             // Same local formulation as a bone: rotate/scale about the anchor, offset the joint.
-            var local = Affine.translation(anchor.x + accessory.offsetX, anchor.y + accessory.offsetY)
-                .multiply(Affine.rotation(MathUtils.degToRad(accessory.rotationDeg)))
-            if (accessory.scale != 1f) {
-                local = local.multiply(Affine.scaling(accessory.scale))
+            var local = Affine.translation(anchor.x + offsetX, anchor.y + offsetY)
+                .multiply(Affine.rotation(MathUtils.degToRad(rotationDeg)))
+            if (scale != 1f) {
+                local = local.multiply(Affine.scaling(scale))
             }
             local = local.multiply(Affine.translation(-anchor.x, -anchor.y))
             val world = boneWorld.multiply(local)
@@ -117,10 +125,10 @@ object PuppetComposer {
             val h = accessory.targetHeight
             val w = h * sprite.aspect
             val rect = FloatRect(
-                left = anchor.x + accessory.offsetX - accessory.pivotX * w,
-                top = anchor.y + accessory.offsetY - accessory.pivotY * h,
-                right = anchor.x + accessory.offsetX + (1f - accessory.pivotX) * w,
-                bottom = anchor.y + accessory.offsetY + (1f - accessory.pivotY) * h,
+                left = anchor.x + offsetX - accessory.pivotX * w,
+                top = anchor.y + offsetY - accessory.pivotY * h,
+                right = anchor.x + offsetX + (1f - accessory.pivotX) * w,
+                bottom = anchor.y + offsetY + (1f - accessory.pivotY) * h,
             )
             draws += PuppetDraw(
                 slotId = accessory.id,

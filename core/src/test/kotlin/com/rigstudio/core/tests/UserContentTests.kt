@@ -114,6 +114,33 @@ object UserContentTests {
             Assert.equals(Expression.HAPPY, back[0].sample(0.25f).expression, "expression round-trips")
         },
 
+        TestCase("user keyframes carry prop transforms and round-trip them") {
+            val clip = waveClip().copy(
+                keys = waveClip().keys.map { key ->
+                    key.copy(
+                        accessories = mapOf(
+                            "acc_hat" to com.rigstudio.core.rig.AccessoryState(rotationDeg = 15f, scale = 1.1f),
+                        ),
+                    )
+                },
+            )
+            // Sampling interpolates prop state between keys.
+            val posed = clip.sample(0.5f).accessories["acc_hat"]!!
+            Assert.close(15f, posed.rotationDeg, 0.01f, "prop rotation sampled")
+            Assert.close(1.1f, posed.scale, 0.01f, "prop scale sampled")
+            // Mirroring flips the prop's horizontal transform.
+            val mirrored = clip.mirrored().sample(0.5f).accessories["acc_hat"]!!
+            Assert.close(-15f, mirrored.rotationDeg, 0.01f, "mirrored prop rotation negates")
+            // JSON round-trip keeps prop keyframes.
+            val back = UserClipCodec.decodeJsonOrNull(UserClipCodec.encodeJson(listOf(clip)))!!
+            val roundTripped = back[0].sample(0.5f).accessories["acc_hat"]!!
+            Assert.close(15f, roundTripped.rotationDeg, 0.01f, "prop rotation survives the codec")
+            // The converted library clip animates the prop too.
+            val converted = clip.toAnimationClip()
+            val fromClip = converted.sample(0.5f).accessories["acc_hat"]!!
+            Assert.close(15f, fromClip.rotationDeg, 0.01f, "converted clip keeps prop tracks")
+        },
+
         TestCase("corrupt user-clip JSON is rejected, never crashes") {
             Assert.that(UserClipCodec.decodeJsonOrNull("{not json") == null) { "garbage → null" }
             Assert.that(UserClipCodec.decodeJsonOrNull("{}") == null) { "missing clips array → null" }

@@ -9,6 +9,7 @@ import com.rigstudio.core.json.str
 import com.rigstudio.core.model.BoneIds
 import com.rigstudio.core.model.Expression
 import com.rigstudio.core.model.MouthShape
+import com.rigstudio.core.rig.AccessoryState
 import com.rigstudio.core.rig.BonePose
 import com.rigstudio.core.rig.Pose
 
@@ -25,6 +26,8 @@ data class UserKeyframe(
     val expression: Expression? = null,
     val mouth: MouthShape? = null,
     val easing: Easing = Easing.SMOOTH,
+    /** Accessory transforms at this instant (V6: props with keyframes). */
+    val accessories: Map<String, AccessoryState> = emptyMap(),
 )
 
 /**
@@ -71,15 +74,39 @@ data class UserClip(
             key.expression?.let { expression = it }
             key.mouth?.let { mouth = it }
         }
+
+        // Props with keyframes: lerp each accessory's transform between the surrounding keys.
+        val accessoryIds = (a.accessories.keys + b.accessories.keys).distinct()
+        val accessoryStates = if (accessoryIds.isEmpty()) {
+            emptyMap()
+        } else {
+            val states = HashMap<String, AccessoryState>(accessoryIds.size)
+            for (id in accessoryIds) {
+                val sa = a.accessories[id]
+                val sb = b.accessories[id]
+                states[id] = when {
+                    sa == null -> AccessoryState()   // appears mid-clip: rest until authored
+                    sb == null -> sa                 // holds its last authored state
+                    else -> AccessoryState(
+                        rotationDeg = sa.rotationDeg + (sb.rotationDeg - sa.rotationDeg) * u,
+                        offsetX = sa.offsetX + (sb.offsetX - sa.offsetX) * u,
+                        offsetY = sa.offsetY + (sb.offsetY - sa.offsetY) * u,
+                        scale = sa.scale + (sb.scale - sa.scale) * u,
+                    )
+                }
+            }
+            states
+        }
         return Pose(
             timeSeconds = time * durationSeconds,
             bones = bones,
             expression = expression,
             mouth = mouth,
+            accessories = accessoryStates,
         )
     }
 
-    /** Mirrored copy: left↔right bones swap, rotations negate (V6 §56). */
+    /** Mirrored copy: left↔right bones swap, rotations negate (V6 §56); props flip with them. */
     fun mirrored(): UserClip = copy(
         id = id + "_mirrored",
         name = "$name (mirrored)",
@@ -87,6 +114,9 @@ data class UserClip(
             key.copy(
                 rotations = key.rotations.entries.associate { (boneId, deg) ->
                     BoneIds.mirrorOf(boneId) to -deg
+                },
+                accessories = key.accessories.entries.associate { (propId, state) ->
+                    propId to state.copy(rotationDeg = -state.rotationDeg, offsetX = -state.offsetX)
                 },
             )
         },
@@ -109,6 +139,22 @@ data class UserClip(
             key.expression?.let { ExpressionKeyframe(key.time, it) }
         }
         val mouths = sorted.mapNotNull { key -> key.mouth?.let { MouthKeyframe(key.time, it) } }
+        val accessoryIds = sorted.flatMap { it.accessories.keys }.distinct()
+        val accessoryTracks = HashMap<String, List<AccessoryKeyframe>>(accessoryIds.size)
+        for (propId in accessoryIds) {
+            accessoryTracks[propId] = sorted.mapNotNull { key ->
+                key.accessories[propId]?.let { state ->
+                    AccessoryKeyframe(
+                        time = key.time,
+                        rotationDeg = state.rotationDeg,
+                        offsetX = state.offsetX,
+                        offsetY = state.offsetY,
+                        scale = state.scale,
+                        easing = key.easing,
+                    )
+                }
+            }
+        }
         return AnimationClip(
             id = id,
             name = name,
@@ -117,6 +163,7 @@ data class UserClip(
             tracks = tracks,
             expressionTrack = expressions,
             mouthTrack = mouths,
+            accessoryTracks = accessoryTracks,
             category = ClipCategory.ACTION,
             description = "Custom animation authored in the pose editor.",
         )
@@ -155,6 +202,14 @@ object UserClipCodec {
                 "expression" to key.expression?.let { str(it.name) },
                 "mouth" to key.mouth?.let { str(it.name) },
                 "easing" to str(key.easing.name),
+                "accessories" to JsonValue.Obj(key.accessories.entries.associate { (id, st) ->
+                    id to obj(
+                        "rotationDeg" to JsonValue.Num(st.rotationDeg.toDouble()),
+                        "offsetX" to JsonValue.Num(st.offsetX.toDouble()),
+                        "offsetY" to JsonValue.Num(st.offsetY.toDouble()),
+                        "scale" to JsonValue.Num(st.scale.toDouble()),
+                    )
+                }),
             )
         }),
     )
@@ -173,6 +228,17 @@ object UserClipCodec {
             ((kv.get("rotations") as? JsonValue.Obj)?.members ?: emptyMap()).forEach { (bone, v) ->
                 (v as? JsonValue.Num)?.let { rotations[bone] = it.value.toFloat() }
             }
+            val accessoryStates = HashMap<String, AccessoryState>()
+            ((kv.get("accessories") as? JsonValue.Obj)?.members ?: emptyMap()).forEach { (id, v) ->
+                if (v is JsonValue.Obj) {
+                    accessoryStates[id] = AccessoryState(
+                        rotationDeg = (v.get("rotationDeg") as? JsonValue.Num)?.value?.toFloat() ?: 0f,
+                        offsetX = (v.get("offsetX") as? JsonValue.Num)?.value?.toFloat() ?: 0f,
+                        offsetY = (v.get("offsetY") as? JsonValue.Num)?.value?.toFloat() ?: 0f,
+                        scale = (v.get("scale") as? JsonValue.Num)?.value?.toFloat() ?: 1f,
+                    )
+                }
+            }
             UserKeyframe(
                 time = time,
                 rotations = rotations,
@@ -182,6 +248,7 @@ object UserClipCodec {
                     ?.let { name0 -> MouthShape.entries.firstOrNull { it.name == name0 } },
                 easing = (kv.get("easing") as? JsonValue.Str)?.value
                     ?.let { name0 -> Easing.entries.firstOrNull { it.name == name0 } } ?: Easing.SMOOTH,
+                accessories = accessoryStates,
             )
         }
         if (keys.isEmpty()) return null

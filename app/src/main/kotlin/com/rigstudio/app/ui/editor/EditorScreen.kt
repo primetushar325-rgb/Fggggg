@@ -264,6 +264,8 @@ fun EditorScreen(
                     NotesCard(state.notes, viewModel::dismissNotes)
                 }
 
+                RigQualityCard(state.rigIssues)
+
                 ViewCard(
                     views = state.views,
                     selected = state.view,
@@ -1411,3 +1413,29 @@ private fun AccessoriesCard(
     }
 }
 
+/** V6 rig quality check: one glance — READY, or FIX REQUIRED with the exact problems. */
+@Composable
+private fun RigQualityCard(issues: List<String>) {
+    SectionCard(title = "Rig quality check") {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatusPill(if (issues.isEmpty()) "READY" else "FIX REQUIRED", if (issues.isEmpty()) RigColors.Primary else RigColors.Error)
+            Text(
+                text = if (issues.isEmpty()) {
+                    "Every view's rig self-check passed: hierarchy complete, bones valid."
+                } else {
+                    "The rig has structural problems:"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = RigColors.TextSecondary,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        for (issue in issues) {
+            Text(
+                text = "• $issue",
+                style = MaterialTheme.typography.bodySmall,
+                color = RigColors.Error,
+            )
+        }
+    }
+}

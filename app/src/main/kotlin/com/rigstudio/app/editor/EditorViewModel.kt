@@ -153,6 +153,8 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
             val userPoses = withContext(Dispatchers.IO) { store.loadPoses(projectId) }
             val userClips = withContext(Dispatchers.IO) { store.loadUserClips(projectId) }
             val accessories = withContext(Dispatchers.IO) { store.loadAccessories(projectId) }
+            // V6 rig quality check: every view's rig must self-check clean → READY.
+            val rigIssues = loadedCharacter.rigs.values.flatMap { it.selfCheck() }.distinct()
             val views = loadedCharacter.availableViews.ifEmpty { listOf(ViewKind.FRONT) }
             val startView = project.lastView.takeIf { it in views } ?: ViewKind.FRONT
             val clips = AnimationLibrary.playableIn(startView, loadedCharacter.hasProfileArtwork) +
@@ -186,6 +188,7 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
                     userClips = userClips,
                     zOrderOverrides = project.zOrderOverrides,
                     accessories = accessories,
+                    rigIssues = rigIssues,
                 )
             }
             cameraZoom = project.lastCameraZoom
@@ -368,11 +371,22 @@ class EditorViewModel(private val app: RigStudioApplication) : ViewModel() {
         val live = AnimationEngine.evaluate(clip, t)
         val captured = pinned?.let { live.override(it) } ?: live
         recordHistory()
+        // V6: props with keyframes — snapshot every accessory's current transform too, so the
+        // custom animation reproduces hat-tilt/sword-swing exactly as staged.
+        val accessoryStates = _state.value.accessories.associate { accessory ->
+            accessory.id to com.rigstudio.core.rig.AccessoryState(
+                rotationDeg = accessory.rotationDeg,
+                offsetX = accessory.offsetX,
+                offsetY = accessory.offsetY,
+                scale = accessory.scale,
+            )
+        }
         val keyframe = com.rigstudio.core.anim.UserKeyframe(
             time = t,
             rotations = captured.bones.mapValues { it.value.rotationDeg },
             expression = captured.expression,
             mouth = captured.mouth,
+            accessories = accessoryStates,
         )
         _state.update { state ->
             state.copy(keyframes = (state.keyframes + keyframe).sortedBy { it.time })

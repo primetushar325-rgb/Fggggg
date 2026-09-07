@@ -75,6 +75,12 @@ data class EditorState(
 
     /** Non-blocking findings from import, re-surfaced when the character is reopened. */
     val notes: List<String> = emptyList(),
+
+    /**
+     * Rig quality check (V6): structural problems from every view's rig self-check. Empty means
+     * READY; anything else is FIX REQUIRED and listed verbatim.
+     */
+    val rigIssues: List<String> = emptyList(),
     val message: String? = null,
 ) {
 
@@ -85,6 +91,8 @@ data class EditorState(
 
     val hasProfileArtwork: Boolean
         get() = ViewKind.SIDE_LEFT in views || ViewKind.SIDE_RIGHT in views
+
+    val rigReady: Boolean get() = rigIssues.isEmpty()
 
     fun isViewAvailable(view: ViewKind): Boolean = view in views
 

@@ -40,6 +40,8 @@ tests (`bash tools/verify_all.sh`).
 | 32 | Enable the debug overlay | Bones, pivots, bounds, z-order badges, IK chains, FPS | Manual |
 | 33 | Import a hat PNG → attach Head → rotate head | Hat rides the head through every animation | Manual / AccessoryTests |
 | 34 | Attach a sword to a hand, size/rotate/layer it | Follows the arm chain; exported MP4 shows it | Manual / AccessoryTests |
+| 35 | Keyframe prop transforms in a custom animation | Prop rotates/scales between keys, exactly like bones | Manual / AccessoryTests |
+| 36 | Open the Rig quality check card | READY when every view self-checks clean; FIX REQUIRED lists exact problems | Manual |
 
 ## Status legend
 
@@ -49,6 +51,7 @@ tests (`bash tools/verify_all.sh`).
 ## Current state (2026-09-07)
 
 Engine foundations shipped and green: IK solver, pose editing, user keyframes/clips, pose
-library, z-order overrides, props/accessories (attach + follow + export), schemaVersion 6
-persistence with forward migration, 4K/60 export settings, 23-clip library, rig inspector.
+library, z-order overrides, props/accessories (attach + follow + **keyframed** + export),
+rig quality check (READY/FIX REQUIRED), schemaVersion 6 persistence with forward migration,
+4K/60 export settings, 23-clip library, rig inspector, Face Mode presets.
 Remaining UI-first steps: on-device pass of the Manual rows.

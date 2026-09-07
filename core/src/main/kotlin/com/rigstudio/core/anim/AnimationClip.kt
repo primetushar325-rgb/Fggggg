@@ -5,6 +5,7 @@ import com.rigstudio.core.model.BoneIds
 import com.rigstudio.core.model.Expression
 import com.rigstudio.core.model.MouthShape
 import com.rigstudio.core.model.ViewKind
+import com.rigstudio.core.rig.AccessoryState
 import com.rigstudio.core.rig.BoneConstraints
 import com.rigstudio.core.rig.BonePose
 import com.rigstudio.core.rig.Pose
@@ -26,6 +27,19 @@ data class AnimationKeyframe(
 ) {
     val offset: Vec2 get() = Vec2(offsetX, offsetY)
 }
+
+/**
+ * One accessory keyframe (V6: props with keyframes): the prop's own transform at an instant.
+ * Sampled exactly like bone tracks — eased lerp between the surrounding keys.
+ */
+data class AccessoryKeyframe(
+    val time: Float,
+    val rotationDeg: Float = 0f,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    val scale: Float = 1f,
+    val easing: Easing = Easing.SMOOTH,
+)
 
 /** All keyframes of one bone inside one clip. Keys must be sorted by ascending time. */
 data class BoneTrack(
@@ -70,6 +84,8 @@ data class AnimationClip(
     val rootTrack: BoneTrack? = null,
     val mouthTrack: List<MouthKeyframe> = emptyList(),
     val expressionTrack: List<ExpressionKeyframe> = emptyList(),
+    /** V6: per-prop transform tracks; empty for every library clip. */
+    val accessoryTracks: Map<String, List<AccessoryKeyframe>> = emptyMap(),
     val expression: Expression = Expression.NEUTRAL,
     val mouth: MouthShape = MouthShape.CLOSED,
     val category: ClipCategory = ClipCategory.ACTION,
@@ -99,12 +115,23 @@ data class AnimationClip(
 
         val root = rootTrack?.let { sampleTrack(it, time).clamped(BoneIds.ROOT) } ?: BonePose.REST
 
+        val accessories = if (accessoryTracks.isEmpty()) {
+            emptyMap()
+        } else {
+            val states = HashMap<String, AccessoryState>(accessoryTracks.size)
+            for ((id, keys) in accessoryTracks) {
+                states[id] = sampleAccessory(keys, time)
+            }
+            states
+        }
+
         return Pose(
             timeSeconds = time * durationSeconds,
             root = root,
             bones = bones,
             expression = sampleExpression(time),
             mouth = sampleMouth(time),
+            accessories = accessories,
         )
     }
 
@@ -146,6 +173,36 @@ data class AnimationClip(
                 scale = scale,
             )
         }
+    }
+
+    /** Eased lerp of one accessory's transform at [time]; holds outside the authored range. */
+    private fun sampleAccessory(keys: List<AccessoryKeyframe>, time: Float): AccessoryState {
+        if (keys.isEmpty()) return AccessoryState()
+        if (keys.size == 1 || time <= keys.first().time) {
+            val k = keys.first()
+            return AccessoryState(k.rotationDeg, k.offsetX, k.offsetY, k.scale)
+        }
+        if (time >= keys.last().time) {
+            val k = keys.last()
+            return AccessoryState(k.rotationDeg, k.offsetX, k.offsetY, k.scale)
+        }
+        var a = keys.first()
+        var b = keys.last()
+        for (i in 0 until keys.size - 1) {
+            if (time >= keys[i].time && time <= keys[i + 1].time) {
+                a = keys[i]
+                b = keys[i + 1]
+                break
+            }
+        }
+        val span = b.time - a.time
+        val u = if (span <= 0f) 1f else a.easing.apply(((time - a.time) / span).coerceIn(0f, 1f))
+        return AccessoryState(
+            rotationDeg = a.rotationDeg + (b.rotationDeg - a.rotationDeg) * u,
+            offsetX = a.offsetX + (b.offsetX - a.offsetX) * u,
+            offsetY = a.offsetY + (b.offsetY - a.offsetY) * u,
+            scale = a.scale + (b.scale - a.scale) * u,
+        )
     }
 
     private fun sampleTrack(track: BoneTrack, time: Float): Sampled {

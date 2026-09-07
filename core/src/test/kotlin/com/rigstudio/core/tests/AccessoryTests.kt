@@ -143,6 +143,59 @@ object AccessoryTests {
             Assert.equals(1, overridden.first { it.slotId == "acc_hat" }.z, "accessory z overridden")
         },
 
+        TestCase("pose accessory state overrides the definition's transform") {
+            val rig = Fixtures.rig()
+            val state = com.rigstudio.core.rig.AccessoryState(rotationDeg = 33f, offsetX = 0.04f, scale = 1.2f)
+            val draws = PuppetComposer.compose(
+                rig,
+                Pose(accessories = mapOf("acc_hat" to state)),
+                accessories = listOf(hat().copy(rotationDeg = 0f)),
+            )
+            val draw = draws.first { it.slotId == "acc_hat" }
+            assertClose(33f, angleOf(draw.world), "animated rotation wins over the definition", 0.5f)
+            assertClose(1.2f, draw.world.scaleMagnitude(), "animated scale wins", 0.01f)
+            // Without a pose state the definition's own transform applies.
+            val plain = PuppetComposer.compose(rig, Pose(), accessories = listOf(hat().copy(rotationDeg = 10f)))
+                .first { it.slotId == "acc_hat" }
+            assertClose(10f, angleOf(plain.world), "definition rotation without animation", 0.5f)
+        },
+
+        TestCase("keyframed accessories sample through the clip pipeline") {
+            val clip = com.rigstudio.core.anim.AnimationClip(
+                id = "prop_test",
+                name = "Prop test",
+                durationSeconds = 2f,
+                loop = true,
+                tracks = mapOf(
+                    BoneIds.HEAD to com.rigstudio.core.anim.BoneTrack(
+                        boneId = BoneIds.HEAD,
+                        keys = listOf(
+                            com.rigstudio.core.anim.AnimationKeyframe(0f, 0f),
+                            com.rigstudio.core.anim.AnimationKeyframe(1f, 0f),
+                        ),
+                    ),
+                ),
+                accessoryTracks = mapOf(
+                    "acc_hat" to listOf(
+                        com.rigstudio.core.anim.AccessoryKeyframe(0.0f, rotationDeg = 0f),
+                        com.rigstudio.core.anim.AccessoryKeyframe(0.5f, rotationDeg = 90f),
+                        com.rigstudio.core.anim.AccessoryKeyframe(1.0f, rotationDeg = 0f),
+                    ),
+                ),
+            )
+            val at0 = clip.sample(0f).accessories["acc_hat"]!!
+            val mid = clip.sample(0.25f).accessories["acc_hat"]!!
+            val atHalf = clip.sample(0.5f).accessories["acc_hat"]!!
+            assertClose(0f, at0.rotationDeg, "starts at rest")
+            assertClose(90f, atHalf.rotationDeg, "exact keyframe at t=0.5")
+            assertClose(45f, mid.rotationDeg, "SMOOTH midpoint at t=0.25", 0.01f)
+            // The hat actually draws at the animated angle.
+            val rig = Fixtures.rig()
+            val drawn = PuppetComposer.compose(rig, clip.sample(0.5f), accessories = listOf(hat()))
+                .first { it.slotId == "acc_hat" }
+            assertClose(90f, angleOf(drawn.world), "composed world rotation follows the track", 0.5f)
+        },
+
         TestCase("accessories round-trip through versioned JSON") {
             val list = listOf(
                 hat(),

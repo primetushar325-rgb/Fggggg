@@ -30,12 +30,25 @@ data class BonePose(
  * This is the single contract between the animation engine and every renderer (preview, MP4
  * export, thumbnail generation), which is why preview and export can never drift apart.
  */
+/**
+ * An accessory's animated state at one instant (V6: props with keyframes). Values override the
+ * accessory definition's own transform; interpolation happens between keyframes.
+ */
+data class AccessoryState(
+    val rotationDeg: Float = 0f,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    val scale: Float = 1f,
+)
+
 data class Pose(
     val timeSeconds: Float = 0f,
     val root: BonePose = BonePose.REST,
     val bones: Map<String, BonePose> = emptyMap(),
     val expression: Expression = Expression.NEUTRAL,
     val mouth: MouthShape = MouthShape.CLOSED,
+    /** Per-accessory animated state (V6); empty = every prop uses its definition's transform. */
+    val accessories: Map<String, AccessoryState> = emptyMap(),
 ) {
 
     fun rotationOf(boneId: String): Float = bones[boneId]?.rotationDeg ?: 0f
@@ -53,9 +66,15 @@ data class Pose(
         val merged = LinkedHashMap<String, BonePose>(bones.size + partial.bones.size)
         merged.putAll(bones)
         merged.putAll(partial.bones)
+        val mergedAccessories = if (partial.accessories.isEmpty()) {
+            accessories
+        } else {
+            LinkedHashMap(accessories).apply { putAll(partial.accessories) }
+        }
         return copy(
             root = if (partial.root == BonePose.REST) root else partial.root,
             bones = merged,
+            accessories = mergedAccessories,
         )
     }
 
