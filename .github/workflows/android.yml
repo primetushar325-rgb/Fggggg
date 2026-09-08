@@ -28,6 +28,13 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:assembleDebug :app:testDebugUnitTest --stacktrace
 
+      # On failure, surface Kotlin compile errors as annotations (readable via the API & UI).
+      - name: Report compile errors
+        if: failure()
+        run: |
+          ./gradlew :app:compileDebugKotlin --console=plain > compile.log 2>&1 || true
+          grep -E "^e: " compile.log | head -60 | sed -E 's|^e: file://[^ ]*/(app/[^:]+:)|::error::\1|' || true
+
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
