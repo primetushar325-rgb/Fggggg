@@ -26,14 +26,16 @@ jobs:
       - name: Build and test
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :app:testDebugUnitTest --stacktrace
+          set -o pipefail
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest --stacktrace 2>&1 | tee build.log
 
-      # On failure, surface Kotlin compile errors as annotations (readable via the API & UI).
-      - name: Report compile errors
+      # On failure, surface Kotlin compile errors / task failures as annotations.
+      - name: Report build errors
         if: failure()
         run: |
-          ./gradlew :app:compileDebugKotlin --console=plain > compile.log 2>&1 || true
-          grep -E "^e: " compile.log | head -60 | sed -E 's|^e: file://[^ ]*/(app/[^:]+:)|::error::\1|' || true
+          grep -E "^e: " build.log | head -60 | sed -E 's|^e: file://[^ ]*/(app/[^:]+:)|::error::\1|' || true
+          grep -E "(^|>) Task .*FAILED|Execution failed for task|\* What went wrong|FAILED$|Caused by:" build.log | head -30 | sed 's/^/::error::/' || true
+          grep -B2 -A8 "There were failing tests" build.log | head -40 | sed 's/^/::error::/' || true
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
