@@ -155,18 +155,18 @@ fun HomeScreen(
                     )
                 },
             )
-            item {
-                if (packs.isEmpty()) {
-                    Text(
-                        "No packs yet — create one from My Sounds.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(packs, key = { it.id }) { pack ->
-                            PackCard(pack) { onNavigate("pack/${pack.id}") }
-                        }
+        }
+        item {
+            if (packs.isEmpty()) {
+                Text(
+                    "No packs yet — create one from My Sounds.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(packs, key = { it.id }) { pack ->
+                        PackCard(pack) { onNavigate("pack/${pack.id}") }
                     }
                 }
             }
