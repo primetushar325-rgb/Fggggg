@@ -188,7 +188,7 @@ fun MetadataForm(
 }
 
 @Composable
-private fun CategoryField(category: Category, onSelect: (Category) -> Unit) {
+fun CategoryField(category: Category, onSelect: (Category) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth()) {
         OutlinedButton(
