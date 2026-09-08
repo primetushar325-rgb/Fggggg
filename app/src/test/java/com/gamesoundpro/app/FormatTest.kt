@@ -7,7 +7,7 @@ import org.junit.Test
 class FormatTest {
 
     @Test
-    fun `durations render as m:ss`() {
+    fun `durations render as minutes and seconds`() {
         assertEquals("0:00", Format.duration(0))
         assertEquals("0:07", Format.duration(7_000))
         assertEquals("1:05", Format.duration(65_000))
