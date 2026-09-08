@@ -286,7 +286,7 @@ private fun LevelMeter(amplitude: Int, paused: Boolean) {
     val level = (amplitude / 32767f).coerceIn(0f, 1f)
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         repeat(16) { index ->
-            val factor = 0.35f + 0.65f * kotlin.math.abs(kotlin.math.sin(index * 1.1))
+            val factor = 0.35f + 0.65f * kotlin.math.abs(kotlin.math.sin(index * 1.1f))
             val barHeight = if (paused) 4.dp else 6.dp + 26.dp * level * factor
             Box(
                 Modifier
