@@ -1,46 +1,20 @@
-# --- Gradle / Android (RigStudio V3) ---
+# Gradle
 .gradle/
 build/
-local.properties
-key.properties
-captures/
-.externalNativeBuild/
-.cxx/
-*.apk
-*.aab
-*.keystore
-*.jks
-app/release/
-app/debug/
+!gradle/wrapper/gradle-wrapper.jar
 
-# --- IDE ---
-*.iml
+# Android Studio / IntelliJ
 .idea/
-.vscode/
+*.iml
+captures/
+local.properties
 
-# --- Kotlin ---
-.kotlin/
+# Keystores — never commit signing material.
+*.jks
+*.keystore
+keystore.properties
 
-# --- legacy Flutter app (V1/V2, kept under legacy/v2-flutter/) ---
-.dart_tool/
-.packages
-.pub-cache/
-.pub/
-legacy/v2-flutter/android/.gradle/
-legacy/v2-flutter/android/local.properties
-legacy/v2-flutter/android/key.properties
-legacy/v2-flutter/ios/Pods/
-legacy/v2-flutter/ios/.symlinks/
-legacy/v2-flutter/ios/Flutter/Flutter.framework/
-legacy/v2-flutter/ios/Flutter/Flutter.podspec
-legacy/v2-flutter/ios/Flutter/App.framework/
-legacy/v2-flutter/ios/Flutter/ephemeral/
-legacy/v2-flutter/ios/Runner/GeneratedPluginRegistrant.*
-legacy/v2-flutter/.flutter-plugins-dependencies
-
-# --- misc ---
-dist/
-.DS_Store
+# Native / logs / OS
+.cxx/
 *.log
-__pycache__/
-*.pyc
+.DS_Store

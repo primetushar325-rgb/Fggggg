@@ -1,172 +1,132 @@
-# RigStudio V4 — draw a sheet, get a rigged, animated character (native Android)
-
-> **V5 animation overhaul** (on top of V4): a layered **animation engine**
-> (`AnimationEngine` + `BlinkScheduler`) — delayed head/hand follow-through, quiet procedural
-> breathing on idle-class clips, deterministic varied blinking, and **220 ms pose-space
-> crossfades** on every clip switch; rebuilt **8-phase walk / run / side cycles** whose feet stay
-> **flat while planted** (contact windows are unit-tested against a foot-flat invariant), arms
-> with staggered shoulder/elbow/hand peaks; **gesture clips auto-return** to the previous base
-> animation (Walk → Wave → Walk); and the timeline now shows the authored **keyframes** as
-> diamonds. Preview and export both sample through the same engine, so they cannot drift.
->
-> **V4 overhaul** (on top of V3's engine): editor **Undo/Redo**, a **Settings** screen with
-> user-level export defaults (720p/1080p · 24/30/60 fps), **loop-by-default**, a hidden
-> **developer debug overlay** (sprite bounds, pivots, z-order badges, FPS — unlock by tapping
-> the version row seven times in Settings), **user camera** on the stage (pinch zoom, pan,
-> double-tap reset — screen-space only, never touches rig coordinates), a **zoomable timeline**
-> (pinch or ± buttons, 1×–6×, second/quarter-second ticks) with **stop** and **loop** transport
-> controls, and app-settings-seeded exports. Same offline guarantees: no permissions, no cloud.
-
-RigStudio turns **one 2048×2048 transparent PNG** — the *Character Sheet* — into a fully rigged 2D
-character that plays **18 built-in animations** and exports them as **MP4 video**, entirely on the
-device. No AI, no cloud, no login, no subscription, no network permission: the app is
-airplane-mode-first by design.
-
-The pipeline is deterministic and fixed-coordinate: every body part lives in a named slot at an
-exact rectangle on the sheet, so extraction is pixel analysis (alpha + bounding box), never
-guesswork.
+# 🎮 GameSound Pro — Premium Gaming Soundboard for Android
 
 <p align="center">
-  <img src="docs/assets/blank-character-sheet.png" width="520" alt="blank character sheet template">
+  <em>“Your Gaming Soundboard” — meme sounds, effects, music clips and your own recordings,<br>
+  one tap away — with an optional floating overlay for Gaming Mode.</em>
 </p>
-<p align="center"><em>The bundled blank template, rendered by <code>tools/render_template.py</code>
-from the same solved layout the app draws (<code>tools/layout.json</code>).</em></p>
+
+GameSound Pro is a **production-quality, offline-first soundboard** built with Kotlin and
+Jetpack Compose. It is a **completely independent Android app**: it plays audio through
+Android's public media APIs like any normal music player, and it **never touches games** —
+no game files, no game memory, no injection, no hooks, no anti-cheat interaction, no root.
 
 ---
 
-## How it works
+## ✨ Features
 
-```
- Character Sheet PNG (2048×2048, RGBA)
-   │  1. validate   size, alpha channel, required front slots non-empty
-   │  2. extract    crop each of the 60 named slots, trim transparent margins
-   │  3. rig        bones Root→Torso→Head/Arms/Legs, pivots per spec, z-order rules
-   │  4. animate    18 clips as pure keyframe data (deterministic, loopable)
-   │  5. render     offscreen Canvas → preview Surface or export frames
-   └─ 6. export     MediaCodec H.264 → MediaMuxer MP4 (or PNG sequence), validated afterwards
-```
-
-* **Extraction** reads only what is inside each slot rectangle. Empty-slot detection is
-  alpha/bounding-box analysis; nothing is segmented, traced or "understood".
-* **Rig** pivots: head 50%/90%, torso 50%/8%, limbs 50%/8%, feet 85%/50%. Bone limits are enforced
-  per joint; mirrored views negate rotations instead of re-authoring clips.
-* **Views**: front (always), side-left / side-right (8 parts each, optional, mirrorable), back
-  (14 parts, optional). A missing view is *disabled and labelled*, never faked.
-* **Face system**: 5 eye + 11 mouth slots auto-attach to the head; Talk cycles mouths
-  closed → A → E → O → closed deterministically.
-* **Export**: MP4 (H.264) is the primary format — 720p/1080p, 24/30/60 fps (default 1080p30),
-  optional local audio track, encoded with `MediaCodec` + `MediaMuxer` from offscreen renders.
-  No screen recording, no FFmpeg, no GIF-as-primary. Every file is re-opened and validated
-  (exists, size > 0, tracks, duration, dimensions, fps) before Save/Share/Open is offered.
-
-## The 18 animations
-
-Idle · Stand · Walk · Run · Talk · Wave · Sit · Sleep · Jump · Walk+Talk ·
-Side Walk · Side Run · Side Talk · Look Back · Happy · Sad · Angry · Surprised
-
-Clips are data (`core/.../anim/`): keyframed bone tracks with per-joint limits, looping semantics
-and dynamic z-order (e.g. legs swap in front of / behind the torso while walking).
-
-## Repository layout
-
-| Path | What it is |
+| Area | What you get |
 | --- | --- |
-| `core/` | Pure Kotlin engine: template geometry, extraction, rig, animation, draw-lists, export models, JSON, project persistence. No Android dependencies; 179 unit tests. |
-| `app/` | Native Android app: Compose UI, ViewModels, Canvas stage renderer, `MediaCodec` MP4 writer, project storage, template & sample-character art. |
-| `tools/` | Offline verification: slot/layout dumpers, reference PNG renderer, sheet checker, synthetic-sheet painter, one-command `verify_all.sh`. |
-| `docs/assets/` | The rendered blank character sheet (generated, committed for review & CI drift checks). |
-| `legacy/v2-flutter/` | The previous Flutter implementation (V1/V2), kept for reference only. Superseded entirely by V3. |
+| **Soundboard** | Category chips (Memes, Reactions, Funny, Music, Gaming, Voice, Effects, Custom), premium animated glass cards, instant playback with overlapping sounds, playing-state glow, favorites, duration labels |
+| **Add sounds in-app** | `+ Add Sound` → import a single file with full customization (name, category, emoji icon, volume, trim, preview), quick multi-file import from the device, record voice, create pack. Supports MP3, WAV, M4A, OGG (+ AAC, FLAC, OPUS) |
+| **Recording** | Start / pause / resume / stop, live level meter + timer, then the same metadata form (rename, trim, preview, save). Microphone permission is requested **only when you open the recorder** |
+| **Sound packs** | Create / rename / delete packs, add & remove sounds, reorder inside a pack, **export / import packs** as validated `.gsoundpack.zip` archives |
+| **Favorites** | Star any sound; favorites appear on their tab, on Home, and in the floating overlay |
+| **Floating Gaming Overlay** | Draggable bubble above other apps (official `SYSTEM_ALERT_WINDOW` mechanism), expands to a compact soundboard: quick sounds, play/stop, volume, stop-all, exit. Size + position persisted. Never blocks the game |
+| **Gaming Mode** | One toggle enables the overlay, densifies the grid, disables decorative animations, and adds a double-back-to-exit guard |
+| **Audio mixer** | Effects / Music / Voice / Master volume sliders, global mute, Stop All, and optional **music ducking** while an effect plays |
+| **Mini music player** | Plays every sound tagged *Music*: play/pause, next/previous, seek, loop, shuffle, volume, embedded artwork, background playback with a media notification (proper foreground service) |
+| **Search, sort, filter** | Global search across sound name, category and pack name; sort by Recently added / Recently played / Most played / Favorites / A–Z |
+| **Sound management** | Long-press any sound → edit, rename, change icon/category, trim, duplicate, move to pack, delete (with confirmation) |
+| **Storage management** | Sounds / packs / MB used, cache clearing, delete never-played sounds, pack export & import |
+| **Starter content** | Six synthesized WAV effects ship in the app, so the board is never empty on first launch |
 
-### Module map (app)
+## 🛡️ Safety, privacy & game compatibility
 
-`ui/` Compose screens & theme · `editor/` ViewModels + playback state · `render/` stage renderer,
-`StageView`, thumbnails · `export/` YUV conversion, audio source, MP4 writer, export runner ·
-`pipeline/` sheet import & validation · `art/` template + sample character · `data/` project store.
+- **No game interaction, ever.** The app cannot and does not modify game APKs, read game
+  memory, inject code, bypass anti-cheat, automate gameplay, or touch any other app's
+  processes. It is a plain media app.
+- **Microphone** is used only while you are actively recording. No background recording.
+- **All audio stays on-device**, in the app's private storage, excluded from backups.
+  Nothing is uploaded anywhere — the app has no network code at all.
+- **Minimum permissions**: microphone (recording only), notifications (playback/gaming
+  notifications), overlay ("display over other apps", only when you enable Gaming Mode).
+  No storage permission (SAF is used), **no contacts / SMS / location / camera /
+  accessibility service / root**.
+- **Voice-chat note:** Android does not let a normal app route its audio into another app's
+  microphone/voice-chat pipeline, and GameSound Pro deliberately does not try to bypass
+  that. Sounds play through your device's normal audio output (speaker/headphones). If you
+  want teammates to hear a sound, play it out loud — or use the in-game media features your
+  game provides. This limitation is explained in-app (Settings → About / Privacy).
 
-## Building
+## 🏗️ Architecture
 
-Android Studio (Ladybug or newer) or:
-
-```bash
-./gradlew :app:assembleDebug      # JDK 17 + Android SDK 35
+```
+app/src/main/kotlin/com/gamesoundpro/app/
+├── GameSoundProApp.kt      # Application: container, notification channels, seeding
+├── MainActivity.kt         # Single activity (Compose), auto-stop on background
+├── di/AppContainer.kt      # Hand-rolled DI: explicit, fast cold start
+├── database/               # Room: entities, DAOs, database
+├── domain/                 # Pure models + LibraryFilter (unit-tested)
+├── audio/                  # AudioEngine (Media3/ExoPlayer), VoiceRecorder
+├── service/                # PlaybackNotificationService (foreground mediaPlayback)
+├── overlay/                # OverlayService (floating bubble) + GamingModeManager
+├── repository/             # SoundRepository (metadata + files), PackCodec (zip)
+├── settings/               # DataStore-backed SettingsRepository
+├── permissions/            # Permission helpers (minimum-permission policy)
+├── ui/
+│   ├── theme/              # Dark gaming theme, accents, glassmorphism primitives
+│   ├── navigation/         # AppRoot: bottom bar, sheets, snackbars, gaming banner
+│   ├── components/         # SoundTile, chips, dialogs, empty states
+│   ├── home/ soundboard/ mysounds/ favorites/ settings/ player/ sheets/
+└── utils/                  # Formatting, audio file helpers
 ```
 
-The app declares **no permissions** in its manifest; media access goes through the system picker
-and SAF, and projects live in app-private storage (`projects/<id>/…`).
+**Stack:** Kotlin 2.0 · Jetpack Compose + Material 3 · Room (KSP) · Media3/ExoPlayer ·
+DataStore · Coroutines/Flow · MVVM with a thin repository layer. Targets Android 8.0+
+(minSdk 26), compile/target SDK 34.
 
-## CI
+**Performance notes:** small effect-player pool with eager release of finished players,
+no image-loading library (artwork extracted + downsampled via platform APIs), no
+reflection-based DI, animation reduction in Gaming Mode, lazy overlay service that only
+runs while Gaming Mode is enabled.
 
-`tools/ci/github-workflow.yml` is the GitHub Actions workflow for V3 (verify_all --drift, then a
-Gradle debug APK). It is kept in `tools/` because this session's GitHub token is not allowed to
-modify `.github/workflows/`; copy it into place once that permission is available:
+## 🔨 Build
 
-```bash
-cp tools/ci/github-workflow.yml .github/workflows/ci.yml
-```
-
-Until then the repository still carries the archived Flutter workflow, which no longer matches the
-tree and will report failures on V3 branches.
-
-## Verifying without a phone
-
-Everything below runs offline with a JDK, `kotlinc` and stock Python 3:
+Requirements: **JDK 17**, Android SDK (Android Studio Ladybug+ or command line).
 
 ```bash
-bash tools/verify_all.sh          # 8 steps, all green == pipeline holds together
-bash tools/verify_all.sh --drift  # + fail if committed sheet artefacts are stale
+./gradlew :app:assembleDebug      # debug APK  -> app/build/outputs/apk/debug/
+./gradlew :app:testDebugUnitTest  # JVM unit tests
+./gradlew :app:assembleRelease    # unsigned unless signing env vars are set (below)
 ```
 
-| Step | Proves |
-| --- | --- |
-| `run_core_tests.sh` | 179 engine tests: template, layout, extraction, rig, draw-lists, animation, playback, export, persistence |
-| `check_app.sh` | `:core` and all non-Compose `:app` sources compile against `tools/android-stubs` (mirrored Android API) |
-| `dump_slots.sh` | Slot geometry (`slots.json`) and the solved guide-ink layout (`layout.json`) straight from the Kotlin template |
-| `render_template.py` | Reference render of the blank sheet from `layout.json` (5×7 bitmap font, no deps) |
-| `sheet_check.py --template` | **The invariant: zero guide ink inside any slot rectangle**, checked pixel-by-pixel |
-| `sheet_check.py` | Any sheet PNG: riggability, available views, mirror offer, expressions/mouths, stray-ink warnings |
-| `make_test_sheet.py` | Synthetic filled sheets (front / front+side / full) so the analyser is tested end-to-end |
-| `make_sample_character.py` | Paints the bundled sample character (all 60 slots, 5 expressions, 11 mouths) |
-| `render_previews.sh` | Runs a sheet through extract -> rig -> all 18 clips and rasterises real frames on the JVM (filmstrips + contact sheet); fails on any empty frame |
+Or open the folder in Android Studio and press Run ▶.
 
-`render_previews.sh` is the offline stand-in for a phone: it feeds a sheet PNG through the very
-same core code the app uses - `SheetProcessor`, `RigBuilder`, `ForwardKinematics`,
-`PuppetComposer` - and blits the resulting draw lists with a naive JVM rasteriser, so every
-(view, clip) pair is proven to produce framed, non-empty animation frames without an Android SDK.
+### GitHub Actions
 
-<p align="center">
-  <img src="docs/assets/sample-character-sheet.png" width="360" alt="sample character sheet">
-</p>
-<p align="center"><em>The bundled sample character sheet: original placeholder artwork in all 60
-slots, used by the offline checks and available in-app for instant testing.</em></p>
+`.github/workflows/android.yml` builds on every push/PR: installs JDK 17, runs
+`assembleDebug` + unit tests, and uploads the **debug APK as a workflow artifact**
+(Actions → Android CI → build → artifacts).
 
-The layout of guide ink (labels, outlines, pivot ticks) is solved as pure geometry in
-`core/.../template/TemplateLayout.kt` and unit-tested: every slot is labelled, no text overlaps
-text or a pivot tick, and nothing is ever drawn inside a slot — because ink inside a slot would be
-extracted as artwork on import.
+Release builds run on `v*` tags with secrets-based signing — see **docs/RELEASE.md**.
+Signing keys and passwords are never stored in the repository.
 
-### Character Sheet rules (short version)
+## 📲 First run
 
-* 2048×2048 RGBA PNG; 60 slots: 24 front-body (exact spec coordinates), 16 face (5 eyes, 11 mouths),
-  16 side (8 left + 8 right), 14 back.
-* Required: the 10 front-body parts that make a riggable character. Everything else degrades to a
-  warning and a disabled view/animation.
-* Complete left profile + empty right profile ⇒ optional **Mirror Side View** derives the right side.
-* Artwork outside every slot is ignored (with a warning showing how much stray ink was found).
+1. Install the debug APK and open GameSound Pro — six starter sounds are seeded
+   automatically (tap one!).
+2. **Add your own:** tap ➕ on the Soundboard (or Home → Add Sound). Pick an MP3/WAV/M4A/OGG,
+   name it, choose an emoji, trim it, preview, save. It appears in *My Sounds* instantly.
+3. **Record:** Home → Record → allow the microphone when asked → record, pause/resume,
+   stop, trim, save.
+4. **Star** sounds to fill Favorites and the overlay's quick buttons.
+5. **Gaming Mode:** flip it on Home or in Settings. The first time, Android will ask you to
+   allow "Display over other apps" — that's the official overlay permission. Then a 🎵
+   bubble floats above your game: drag it anywhere, tap it for quick sounds, volume and
+   stop-all.
 
-## Guarantees (and explicit non-goals)
+## ⚠️ Documented limitations (honest engineering)
 
-* Offline: no `INTERNET` permission, no analytics, no cloud sync, no accounts, no payments.
-* Deterministic: same sheet ⇒ same rig, same frames, same MP4, on any device.
-* No AI/ML auto-rigging, no manual skeleton/lasso editing, no fake side/back generation,
-  no FFmpeg, no screen-record export.
-* Core engine and all 18 animations are free; nothing is gated behind payment.
+- **Voice-chat routing is impossible via public APIs** — see the safety section above.
+- **Trim is a playback window**, not a re-encode: sounds play their selected slice with
+  sample-accurate clipping. Pack exports preserve trim metadata, but the underlying file
+  stays whole (no ffmpeg in the app).
+- **Overlay visibility** can be restricted by some games' anti-overlay/anti-cheat flags
+  (e.g. during tournaments or on screens flagged secure). That is the game's decision; the
+  overlay simply follows Android's public window rules.
+- **Music playlist** = every sound categorized as *Music*. Tag tracks via Edit → Category.
 
-## Legacy
+## 📄 License
 
-`legacy/v2-flutter/` contains the earlier Flutter app (chroma-key import, GIF previews). It is
-archived reference material: V3 replaces its architecture (fixed-slot extraction instead of
-auto-segmentation, MP4 instead of GIF-primary) and shares no code or assets with it.
-
-## License
-
-See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Bundled starter sounds are synthesized tones generated by
+this project (no third-party copyrighted audio).
