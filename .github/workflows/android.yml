@@ -78,7 +78,14 @@ jobs:
             echo "$GSP_KEYSTORE_BASE64" | base64 -d > release.keystore
             export GSP_KEYSTORE_PATH=release.keystore
           fi
-          ./gradlew :app:assembleRelease --stacktrace
+          set -o pipefail
+          ./gradlew :app:assembleRelease --stacktrace 2>&1 | tee release-build.log
+
+      - name: Report release build errors
+        if: failure()
+        run: |
+          grep -E "^e: " release-build.log | head -60 | sed -E 's|^e: file://[^ ]*/(app/[^:]+:)|::error::\1|' || true
+          grep -E "Missing class|Execution failed for task|\* What went wrong|Caused by:|Warning: " release-build.log | head -40 | sed 's/^/::error::/' || true
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
