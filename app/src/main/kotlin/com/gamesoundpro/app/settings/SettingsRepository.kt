@@ -25,7 +25,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
  * Single source of truth for user preferences (DataStore). Also keeps a main-thread snapshot
  * so non-suspend call sites (e.g. lifecycle callbacks) can read the current values cheaply.
  */
-class SettingsRepository(context: Context) {
+class SettingsRepository(private val context: Context) {
 
     private object Keys {
         val THEME_MODE = intPreferencesKey("theme_mode")

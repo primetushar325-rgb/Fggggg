@@ -51,7 +51,6 @@ class VoiceRecorder(private val context: Context) {
             r.setAudioEncodingBitRate(128_000)
             r.setAudioSamplingRate(44_100)
             r.setAudioChannels(1)
-            r.setMaxAmplitude(32767)
             r.setOutputFile(file.absolutePath)
             r.prepare()
             r.start()

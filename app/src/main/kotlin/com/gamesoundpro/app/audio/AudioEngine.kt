@@ -395,6 +395,13 @@ class AudioEngine(
         applyMusicVolume()
     }
 
+    /** Live master volume (mixer slider + overlay). Persisting is done by the caller. */
+    fun setMasterVolumeLive(value: Float) {
+        volumes = volumes.copy(master = value.coerceIn(0f, 1f))
+        applyVolumesToSlots()
+        applyMusicVolume()
+    }
+
     private fun startPlaybackService() {
         try {
             context.startForegroundService(Intent(context, PlaybackNotificationService::class.java))
@@ -424,7 +431,6 @@ class AudioEngine(
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
-            PlaybackException.ERROR_CODE_PARSING_UNSUPPORTED,
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED -> context.getString(R.string.error_unsupported_format)
             else -> context.getString(R.string.error_playback)

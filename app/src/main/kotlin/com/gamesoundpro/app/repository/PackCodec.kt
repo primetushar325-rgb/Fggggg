@@ -66,7 +66,8 @@ object PackCodec {
     }
 
     /** Strict parse + schema validation. Null when the manifest is not ours. */
-    fun parseManifest(json: String): ManifestData? = try {
+    fun parseManifest(json: String): ManifestData? {
+        return try {
         val root = JSONObject(json)
         if (root.optString("format") != FORMAT_ID) return null
         val version = root.optInt("version", -1)
@@ -100,8 +101,9 @@ object PackCodec {
             }
         }
         ManifestData(packName, packIcon, sounds)
-    } catch (_: Exception) {
-        null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**
