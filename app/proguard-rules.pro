@@ -1,5 +1,10 @@
-# RigStudio ships no reflection-heavy libraries: the engine is plain Kotlin data and maths,
-# Compose generates its own keep rules, and MediaCodec/MediaMuxer are framework classes.
-# Shrinking is therefore safe with the defaults; these lines only keep crash reports readable.
+# GameSound Pro keeps most of the app reachable via reflection-free Compose/Room code paths,
+# so the default optimizer rules below are enough. Room and Media3 ship their own consumer
+# rules. Keep crash reports readable if a crash reporter is ever added.
 -keepattributes SourceFile,LineNumberTable
--renamesourcefileattribute SourceFile
+
+# Media3 / ExoPlayer (defensive; upstream consumer rules already cover these)
+-dontwarn org.checkerframework.**
+
+# kotlinx.coroutines
+-dontwarn kotlinx.coroutines.**

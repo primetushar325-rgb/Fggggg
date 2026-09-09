@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-Android-12 backup rules: user audio never leaves the device. -->
+<full-backup-content>
+    <exclude domain="file" path="sounds/" />
+    <exclude domain="file" path="recordings/" />
+    <exclude domain="file" path="artwork/" />
+</full-backup-content>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ backup rules. User audio stays on-device: sounds and recordings are
+     excluded from cloud backup and device transfer. Settings (DataStore) do sync so a
+     restored install keeps its look & feel. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="sounds/" />
+        <exclude domain="file" path="recordings/" />
+        <exclude domain="file" path="artwork/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="sounds/" />
+        <exclude domain="file" path="recordings/" />
+        <exclude domain="file" path="artwork/" />
+    </device-transfer>
+</data-extraction-rules>
