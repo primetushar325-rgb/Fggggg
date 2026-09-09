@@ -15,7 +15,8 @@ class GeometryTest {
     fun `safeCoerce tolerates inverted ranges`() {
         // panel (360) wider than screen (320) used to crash: coerceIn(0, -40)
         assertEquals(-40, Geometry.safeCoerce(-40, 0, -40))
-        assertEquals(320, Geometry.safeCoerce(320, -40, 0))
+        // inverted range is flattened: max becomes the upper bound
+        assertEquals(0, Geometry.safeCoerce(320, -40, 0))
         assertEquals(5, Geometry.safeCoerce(5, 0, 10))
         assertEquals(10, Geometry.safeCoerce(99, 0, 10))
         assertEquals(0, Geometry.safeCoerce(-5, 0, 10))
