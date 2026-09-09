@@ -22,16 +22,16 @@ class FloatingIconTouchController(
 ) {
 
     interface Callbacks {
-        /** Finger went down on the icon. */
-        fun onDragStart(x: Int, y: Int)
+        /** Finger went down on the icon (every gesture — capture the window origin here). */
+        fun onGestureDown(x: Int, y: Int)
 
         /** Icon should move to the given raw coordinates (threshold already passed). */
         fun onDragMoved(x: Int, y: Int)
 
-        /** Drag finished; the position is final (snap/save happens in the service). */
+        /** A DRAG finished (never fired for taps); position is final (snap/save in service). */
         fun onDragEnd()
 
-        /** A clean tap (never exceeded the slop on either axis). */
+        /** A clean tap (never exceeded the slop on either axis); mutually exclusive with drags. */
         fun onTap()
     }
 
@@ -66,7 +66,7 @@ class FloatingIconTouchController(
                 maxMovement = 0f
                 state = GestureState.TRACKING
                 DebugLog.d("Drag", "START at ${rawX.toInt()},${rawY.toInt()}")
-                callbacks.onDragStart(rawX.toInt(), rawY.toInt())
+                callbacks.onGestureDown(rawX.toInt(), rawY.toInt())
                 return true
             }
 

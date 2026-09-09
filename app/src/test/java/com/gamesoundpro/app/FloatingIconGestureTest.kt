@@ -15,14 +15,14 @@ class FloatingIconGestureTest {
 
     private class RecordingCallbacks : FloatingIconTouchController.Callbacks {
         var taps = 0
-        var dragStarts = 0
+        var gestureDowns = 0
         var dragMoves = 0
         var dragEnds = 0
         var lastX = 0
         var lastY = 0
 
-        override fun onDragStart(x: Int, y: Int) {
-            dragStarts++; lastX = x; lastY = y
+        override fun onGestureDown(x: Int, y: Int) {
+            gestureDowns++; lastX = x; lastY = y
         }
 
         override fun onDragMoved(x: Int, y: Int) {
@@ -48,8 +48,8 @@ class FloatingIconGestureTest {
         c.feed(FloatingIconTouchController.ACTION_MOVE, 105f, 103f)   // 5px jitter < 24
         c.feed(FloatingIconTouchController.ACTION_UP, 105f, 103f)
         assertEquals(1, cb.taps)
-        assertEquals(0, cb.dragStarts)
-        assertEquals(0, cb.dragEnds)
+        assertEquals(1, cb.gestureDowns)  // finger went down exactly once
+        assertEquals(0, cb.dragEnds)      // ...but it was never a drag
         assertFalse(c.isDragging)
     }
 
@@ -61,7 +61,7 @@ class FloatingIconGestureTest {
         c.feed(FloatingIconTouchController.ACTION_MOVE, 210f, 270f)
         c.feed(FloatingIconTouchController.ACTION_UP, 210f, 270f)
         assertEquals(0, cb.taps)
-        assertEquals(1, cb.dragStarts)
+        assertEquals(1, cb.gestureDowns)
         assertTrue(cb.dragMoves >= 2)
         assertEquals(1, cb.dragEnds)
         assertEquals(210, cb.lastX)
@@ -108,7 +108,7 @@ class FloatingIconGestureTest {
         }
         assertEquals(expectedTaps, cb.taps)
         assertEquals(expectedDrags, cb.dragEnds)
-        assertEquals(0, cb.dragStarts - expectedDrags) // a drag start per drag only
+        assertEquals(100, cb.gestureDowns) // every gesture began with exactly one down
         assertFalse(c.isDragging)
     }
 }

@@ -375,7 +375,7 @@ class OverlayService : Service() {
         var downY = 0
 
         iconGesture = FloatingIconTouchController(touchSlop, object : FloatingIconTouchController.Callbacks {
-            override fun onDragStart(x: Int, y: Int) {
+            override fun onGestureDown(x: Int, y: Int) {
                 startPX = params.x
                 startPY = params.y
                 downX = x
