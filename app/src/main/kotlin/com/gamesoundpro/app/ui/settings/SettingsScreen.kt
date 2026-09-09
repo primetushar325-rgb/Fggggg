@@ -373,8 +373,15 @@ fun SettingsScreen(
         GlassSurface(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("GameSound Pro", style = MaterialTheme.typography.titleMedium)
+                val versionName = remember {
+                    try {
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
+                    } catch (_: Exception) {
+                        "?"
+                    }
+                }
                 Text(
-                    "Version 1.0.0 · Built with Kotlin, Jetpack Compose, Room & Media3",
+                    "Version $versionName · Built with Kotlin, Jetpack Compose, Room & Media3",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
