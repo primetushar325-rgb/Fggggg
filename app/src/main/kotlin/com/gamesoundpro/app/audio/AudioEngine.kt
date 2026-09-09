@@ -174,13 +174,15 @@ class AudioEngine(
         // live without any polling.
         try {
             audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {
-                override fun onAudioDeviceAdded(addedDevices: Array<out AudioDeviceInfo>) {
-                    DebugLog.d("AudioRoute", "device added type=${addedDevices.firstOrNull()?.type ?: -1}")
+                override fun onAudioDeviceAdded(addedDevices: IntArray?) {
+                    val type = addedDevices?.firstOrNull() ?: -1
+                    DebugLog.d("AudioRoute", "device added type=$type")
                     publishSnapshot { copy(audioRoute = audioRoute()) }
                 }
 
-                override fun onAudioDeviceRemoved(removedDevices: Array<out AudioDeviceInfo>) {
-                    DebugLog.d("AudioRoute", "device removed type=${removedDevices.firstOrNull()?.type ?: -1}")
+                override fun onAudioDeviceRemoved(removedDevices: IntArray?) {
+                    val type = removedDevices?.firstOrNull() ?: -1
+                    DebugLog.d("AudioRoute", "device removed type=$type")
                     publishSnapshot { copy(audioRoute = audioRoute()) }
                 }
             }, mainHandler)
