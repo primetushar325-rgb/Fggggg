@@ -213,7 +213,13 @@ fun AppRoot(container: AppContainer) {
                         FavoritesScreen(onEditSound = { editing = it })
                     }
                     composable("settings") {
-                        SettingsScreen(onMessage = showMessage)
+                        SettingsScreen(
+                            onMessage = showMessage,
+                            onOpenDiagnostics = { navController.navigate("diagnostics") },
+                        )
+                    }
+                    composable("diagnostics") {
+                        com.gamesoundpro.app.ui.diagnostics.DiagnosticsScreen(onBack = { navController.popBackStack() })
                     }
                     composable("packs") {
                         PacksScreen(

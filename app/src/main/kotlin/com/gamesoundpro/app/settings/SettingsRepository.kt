@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.gamesoundpro.app.domain.AppSettings
+import com.gamesoundpro.app.domain.AudioFocusBehavior
 import com.gamesoundpro.app.domain.MixerVolumes
 import com.gamesoundpro.app.domain.ThemeMode
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,9 @@ class SettingsRepository(private val context: Context) {
         val OVERLAY_X = intPreferencesKey("overlay_x")
         val OVERLAY_Y = intPreferencesKey("overlay_y")
         val SEED_DONE = booleanPreferencesKey("seed_done")
+        val AUDIO_FOCUS = intPreferencesKey("audio_focus_behavior")
+        val OVERLAY_KEYBOARD = booleanPreferencesKey("overlay_keyboard")
+        val OVERLAY_FILTER = stringPreferencesKey("overlay_filter")
         val VOL_EFFECTS = floatPreferencesKey("vol_effects")
         val VOL_MUSIC = floatPreferencesKey("vol_music")
         val VOL_VOICE = floatPreferencesKey("vol_voice")
@@ -76,6 +80,12 @@ class SettingsRepository(private val context: Context) {
             overlayX = this[Keys.OVERLAY_X] ?: Int.MIN_VALUE,
             overlayY = this[Keys.OVERLAY_Y] ?: Int.MIN_VALUE,
             seedDone = this[Keys.SEED_DONE] ?: false,
+            audioFocusBehavior = when (this[Keys.AUDIO_FOCUS] ?: 0) {
+                1 -> AudioFocusBehavior.DUCK_OTHERS
+                else -> AudioFocusBehavior.NONE
+            },
+            overlayKeyboard = this[Keys.OVERLAY_KEYBOARD] ?: true,
+            overlayFilter = this[Keys.OVERLAY_FILTER] ?: "all",
             mixer = MixerVolumes(
                 effects = this[Keys.VOL_EFFECTS] ?: 0.9f,
                 music = this[Keys.VOL_MUSIC] ?: 0.6f,
@@ -102,6 +112,13 @@ class SettingsRepository(private val context: Context) {
     suspend fun setGamingMode(enabled: Boolean) = edit { it[Keys.GAMING_MODE] = enabled }
     suspend fun setOverlayScale(scale: Float) = edit { it[Keys.OVERLAY_SCALE] = scale.coerceIn(0.7f, 1.6f) }
     suspend fun setSeedDone(done: Boolean) = edit { it[Keys.SEED_DONE] = done }
+
+    suspend fun setAudioFocusBehavior(behavior: AudioFocusBehavior) =
+        edit { it[Keys.AUDIO_FOCUS] = behavior.ordinal }
+
+    suspend fun setOverlayKeyboard(enabled: Boolean) = edit { it[Keys.OVERLAY_KEYBOARD] = enabled }
+
+    suspend fun setOverlayFilter(filter: String) = edit { it[Keys.OVERLAY_FILTER] = filter.take(12) }
 
     suspend fun setOverlayPosition(x: Int, y: Int) = edit {
         it[Keys.OVERLAY_X] = x

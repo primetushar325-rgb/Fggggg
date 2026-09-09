@@ -45,5 +45,8 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repository.toggleFavorite(sound) }
     }
 
-    fun setGamingMode(enabled: Boolean) = container.gamingModeManager.setEnabled(enabled)
+    fun setGamingMode(enabled: Boolean) {
+        if (enabled) container.audioEngine.warmUp()
+        container.gamingModeManager.setEnabled(enabled)
+    }
 }

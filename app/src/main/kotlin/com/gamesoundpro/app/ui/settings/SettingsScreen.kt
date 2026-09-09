@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gamesoundpro.app.database.entity.SoundPackEntity
 import com.gamesoundpro.app.domain.AppSettings
+import com.gamesoundpro.app.domain.AudioFocusBehavior
 import com.gamesoundpro.app.domain.ThemeMode
 import com.gamesoundpro.app.permissions.Permissions
 import com.gamesoundpro.app.ui.components.ConfirmDialog
@@ -59,6 +60,7 @@ import com.gamesoundpro.app.utils.Format
 @Composable
 fun SettingsScreen(
     onMessage: (String) -> Unit,
+    onOpenDiagnostics: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -195,6 +197,22 @@ fun SettingsScreen(
                     settings.ducking,
                 ) { viewModel.setDucking(it) }
                 Spacer(Modifier.height(6.dp))
+                Text("Audio focus behavior", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AudioFocusBehavior.entries.forEach { behavior ->
+                        FilterChip(
+                            selected = settings.audioFocusBehavior == behavior,
+                            onClick = { viewModel.setAudioFocusBehavior(behavior) },
+                            label = { Text(behavior.label) },
+                        )
+                    }
+                }
+                Text(
+                    settings.audioFocusBehavior.hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
                 Text(
                     "Default sound volume · ${Format.percent(settings.defaultVolume / 1.5f)}",
                     style = MaterialTheme.typography.titleSmall,
@@ -212,6 +230,22 @@ fun SettingsScreen(
         GlassSurface(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val canOverlay = Permissions.canDrawOverlays(context)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenDiagnostics() },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Audio diagnostics", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Engine, focus, playback & overlay health + TEST SOUND",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text("→", color = MaterialTheme.colorScheme.primary)
+                }
                 ToggleRow(
                     title = "Gaming Mode",
                     subtitle = if (canOverlay) "Show the floating soundboard above other apps"
@@ -234,6 +268,11 @@ fun SettingsScreen(
                     onValueChange = { viewModel.setOverlayScale(it) },
                     valueRange = 0.7f..1.6f,
                 )
+                ToggleRow(
+                    title = "Sidebar keyboard",
+                    subtitle = "Allow the search field to open the keyboard (grabs input while open)",
+                    checked = settings.overlayKeyboard,
+                ) { viewModel.setOverlayKeyboard(it) }
                 OutlinedButton(onClick = { viewModel.resetOverlayPosition() }) {
                     Text("Reset overlay position")
                 }

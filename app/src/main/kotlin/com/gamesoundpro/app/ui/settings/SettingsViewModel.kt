@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamesoundpro.app.GameSoundProApp
 import com.gamesoundpro.app.domain.AppSettings
+import com.gamesoundpro.app.domain.AudioFocusBehavior
 import com.gamesoundpro.app.domain.MixerVolumes
 import com.gamesoundpro.app.domain.StorageStats
 import com.gamesoundpro.app.domain.ThemeMode
@@ -48,6 +49,10 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setAutoStop(enabled: Boolean) = viewModelScope.launch { settingsRepository.setAutoStop(enabled) }
     fun setDucking(enabled: Boolean) = viewModelScope.launch { settingsRepository.setDucking(enabled) }
     fun setOverlayScale(scale: Float) = viewModelScope.launch { settingsRepository.setOverlayScale(scale) }
+    fun setAudioFocusBehavior(behavior: AudioFocusBehavior) =
+        viewModelScope.launch { settingsRepository.setAudioFocusBehavior(behavior) }
+    fun setOverlayKeyboard(enabled: Boolean) =
+        viewModelScope.launch { settingsRepository.setOverlayKeyboard(enabled) }
     fun resetOverlayPosition() = viewModelScope.launch { settingsRepository.resetOverlayPosition() }
     fun setGamingMode(enabled: Boolean) = container.gamingModeManager.setEnabled(enabled)
 

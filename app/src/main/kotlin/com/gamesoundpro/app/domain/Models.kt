@@ -87,6 +87,16 @@ enum class ThemeMode(val label: String) {
     LIGHT("Light");
 }
 
+/**
+ * How the soundboard treats audio focus while sound effects play.
+ * NONE never touches focus (fully independent playback — game-friendly default).
+ * DUCK_OTHERS takes a transient-may-duck focus around effect playback.
+ */
+enum class AudioFocusBehavior(val label: String, val hint: String) {
+    NONE("Independent", "Never requests audio focus — game audio is untouched"),
+    DUCK_OTHERS("Duck others", "Requests transient-may-duck focus while effects play"),
+}
+
 /** Shared search/filter/sort UI state for library-style screens. */
 data class BoardFilterState(
     val query: String = "",
@@ -107,6 +117,9 @@ data class AppSettings(
     val overlayX: Int = Int.MIN_VALUE,
     val overlayY: Int = Int.MIN_VALUE,
     val mixer: MixerVolumes = MixerVolumes(),
+    val audioFocusBehavior: AudioFocusBehavior = AudioFocusBehavior.NONE,
+    val overlayKeyboard: Boolean = true,
+    val overlayFilter: String = "all",
     val seedDone: Boolean = false,
 ) {
     companion object {

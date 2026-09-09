@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import com.gamesoundpro.app.di.AppContainer
+import com.gamesoundpro.app.utils.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -15,6 +16,7 @@ class GameSoundProApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DebugLog.init(this)
         container = AppContainer(this)
         createNotificationChannels()
         seedStarterContent()

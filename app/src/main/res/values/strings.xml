@@ -43,4 +43,5 @@
     <string name="error_pack_export">Couldn\'t export the pack.</string>
     <string name="error_pack_import">That file isn\'t a valid GameSound Pro pack.</string>
     <string name="error_record_start">Couldn\'t start recording. Is another app using the microphone?</string>
+    <string name="error_file_unavailable">Sound file is unavailable.</string>
 </resources>

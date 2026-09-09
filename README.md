@@ -30,6 +30,34 @@ no game files, no game memory, no injection, no hooks, no anti-cheat interaction
 | **Storage management** | Sounds / packs / MB used, cache clearing, delete never-played sounds, pack export & import |
 | **Starter content** | Six synthesized WAV effects ship in the app, so the board is never empty on first launch |
 
+## 🛡️ V2 stability architecture (audio + floating overlay)
+
+V2 hardens the two subsystems that matter most in-game:
+
+- **One authoritative AudioEngine** (`Application`-scoped, owned by no Activity/Service/UI).
+  Every consumer — app screens, the floating sidebar, the notification service — observes a
+  single `AudioSnapshot` state machine (`IDLE / LOADING / PLAYING / PAUSED / STOPPED / ERROR`)
+  and never touches player lifecycle. Commands are serialized; slots self-heal by rebuilding
+  any player that errored and retrying once, so routing changes (entering a game, BT
+  connect/disconnect) can't leave a permanently silent pool.
+- **Explicit audio-focus policy** (Settings → Playback): *Independent* (default — never
+  requests focus, game audio untouched) or *Duck others* (transient-may-duck while effects
+  play). Focus state is visible in Audio Diagnostics.
+- **Overlay state machine**: `OverlayStateMachine` (pure, unit-tested) holds
+  `BUBBLE_ONLY ↔ SIDEBAR_OPEN`. The service is a thin renderer that reconciles windows to
+  match state — closing the sidebar detaches *only* the sidebar window: the service, the
+  bubble, Gaming Mode and all audio keep running. Toggle is atomic with a 220 ms debounce.
+  All overlay geometry goes through crash-safe range helpers (V1 could throw and kill the
+  service when the panel exceeded small/landscape screens).
+- **Sidebar persistence**: filter/search state, volume, position, size and Gaming Mode
+  survive sidebar close/reopen (and service restart); a clean `BUBBLE_ONLY` state is
+  restored after process death.
+- **Audio Diagnostics** (Settings → Audio diagnostics): engine/player/focus/volume/route/
+  service/gaming-mode rows plus a **TEST SOUND** button that reports
+  “✓ Audio Engine Active” or “⚠ Audio Playback Unavailable” with the reason (never silent).
+- **Structured debug logs** in debug builds: `[OverlayService] [OverlayState] [AudioEngine]
+  [AudioFocus] [Playback] [Permission]`.
+
 ## 🛡️ Safety, privacy & game compatibility
 
 - **No game interaction, ever.** The app cannot and does not modify game APKs, read game
