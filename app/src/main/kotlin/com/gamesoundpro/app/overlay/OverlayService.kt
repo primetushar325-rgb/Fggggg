@@ -535,7 +535,7 @@ class OverlayService : Service() {
             progress = (settings.snapshot.mixer.master * 100).toInt()
             progressTintList = android.content.res.ColorStateList.valueOf(0xFF8B5CF6.toInt())
             progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0xFF2A3150.toInt())
-            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFC9D0F2)
+            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFC9D0F2.toInt())
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
                     if (fromUser) engine.setMasterVolumeLive(progress / 100f)
