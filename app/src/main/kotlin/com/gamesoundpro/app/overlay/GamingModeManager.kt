@@ -34,6 +34,11 @@ class GamingModeManager(
 
     fun setEnabled(on: Boolean) {
         scope.launch { settings.setGamingMode(on) }
+        // Idempotence: enabling twice must not create a second service (V3 requirement).
+        if (on && overlayActive.value) {
+            com.gamesoundpro.app.utils.DebugLog.d("Overlay", "service already running — not duplicating")
+            return
+        }
         try {
             if (on) {
                 context.startForegroundService(Intent(context, OverlayService::class.java))

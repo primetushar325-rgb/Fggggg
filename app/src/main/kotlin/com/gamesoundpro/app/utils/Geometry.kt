@@ -24,4 +24,38 @@ object Geometry {
         if (size >= screen) return 0
         return preferred.coerceIn(0, screen - size)
     }
+
+    // ---------------------------------------------------------------------------------
+    // Floating-icon position: snap-to-edge + orientation-safe normalized persistence
+    // ---------------------------------------------------------------------------------
+
+    /**
+     * Nearest horizontal edge for an icon at [x] (icon width [iconW]) — used to snap the
+     * icon to the left or right screen edge (with [margin]) after a drag, like the
+     * standard assistant bubbles.
+     */
+    fun snapToNearestEdgeX(x: Int, iconW: Int, screenW: Int, margin: Int): Int {
+        val maxX = (screenW - iconW - margin).coerceAtLeast(margin)
+        val left = margin
+        val right = maxX
+        return if (Math.abs(x - left) <= Math.abs(right - x)) left else right
+    }
+
+    /**
+     * Converts an absolute position into normalized fractions of the movable range
+     * (0..1 on each axis). Fractions survive portrait/landscape switches and different
+     * aspect ratios; absolute pixels do not (the V1 restore bug).
+     */
+    fun normalizePosition(x: Int, y: Int, availW: Int, availH: Int): Pair<Float, Float> {
+        val fx = if (availW <= 0) 0f else (x.toFloat() / availW).coerceIn(0f, 1f)
+        val fy = if (availH <= 0) 0f else (y.toFloat() / availH).coerceIn(0f, 1f)
+        return fx to fy
+    }
+
+    /** Inverse of [normalizePosition]; result is always clamped inside 0..avail. */
+    fun denormalizePosition(fx: Float, fy: Float, availW: Int, availH: Int): Pair<Int, Int> {
+        val x = ((fx.coerceIn(0f, 1f)) * availW).toInt().coerceIn(0, availW.coerceAtLeast(0))
+        val y = ((fy.coerceIn(0f, 1f)) * availH).toInt().coerceIn(0, availH.coerceAtLeast(0))
+        return x to y
+    }
 }

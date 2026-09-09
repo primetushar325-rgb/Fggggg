@@ -40,6 +40,8 @@ class SettingsRepository(private val context: Context) {
         val OVERLAY_SCALE = floatPreferencesKey("overlay_scale")
         val OVERLAY_X = intPreferencesKey("overlay_x")
         val OVERLAY_Y = intPreferencesKey("overlay_y")
+        val OVERLAY_NORM_X = floatPreferencesKey("overlay_norm_x")
+        val OVERLAY_NORM_Y = floatPreferencesKey("overlay_norm_y")
         val SEED_DONE = booleanPreferencesKey("seed_done")
         val AUDIO_FOCUS = intPreferencesKey("audio_focus_behavior")
         val OVERLAY_KEYBOARD = booleanPreferencesKey("overlay_keyboard")
@@ -80,6 +82,8 @@ class SettingsRepository(private val context: Context) {
             overlayScale = this[Keys.OVERLAY_SCALE] ?: 1f,
             overlayX = this[Keys.OVERLAY_X] ?: Int.MIN_VALUE,
             overlayY = this[Keys.OVERLAY_Y] ?: Int.MIN_VALUE,
+            overlayNormX = this[Keys.OVERLAY_NORM_X] ?: Float.NaN,
+            overlayNormY = this[Keys.OVERLAY_NORM_Y] ?: Float.NaN,
             seedDone = this[Keys.SEED_DONE] ?: false,
             audioFocusBehavior = when (this[Keys.AUDIO_FOCUS] ?: 0) {
                 1 -> AudioFocusBehavior.DUCK_OTHERS
@@ -126,9 +130,20 @@ class SettingsRepository(private val context: Context) {
         it[Keys.OVERLAY_Y] = y
     }
 
+    /** Orientation-safe persistence: fractions of the movable area (0..1). */
+    suspend fun setOverlayPositionNormalized(fx: Float, fy: Float) = edit {
+        it[Keys.OVERLAY_NORM_X] = fx
+        it[Keys.OVERLAY_NORM_Y] = fy
+        // Keep the legacy absolute keys in sync for a best-effort restore on old installs.
+        it[Keys.OVERLAY_X] = (fx * 10_000).toInt()
+        it[Keys.OVERLAY_Y] = (fy * 10_000).toInt()
+    }
+
     suspend fun resetOverlayPosition() = edit {
         it[Keys.OVERLAY_X] = Int.MIN_VALUE
         it[Keys.OVERLAY_Y] = Int.MIN_VALUE
+        it[Keys.OVERLAY_NORM_X] = Float.NaN
+        it[Keys.OVERLAY_NORM_Y] = Float.NaN
     }
 
     suspend fun setMixerVolumes(volumes: MixerVolumes) = edit {

@@ -38,4 +38,38 @@ class GeometryTest {
         assertEquals(0, Geometry.clampPanelOrigin(400, 360, 320))
         assertEquals(0, Geometry.clampPanelOrigin(-999, 360, 320))
     }
+
+    @Test
+    fun `snapToNearestEdgeX picks the closer edge`() {
+        // Screen 1080, icon 160, margin 8: left=8, right=912.
+        assertEquals(8, Geometry.snapToNearestEdgeX(100, 160, 1080, 8))
+        assertEquals(912, Geometry.snapToNearestEdgeX(900, 160, 1080, 8))
+        // Midpoint rounds to the left edge (<=).
+        assertEquals(8, Geometry.snapToNearestEdgeX(460, 160, 1080, 8))
+        // Results are always valid positions.
+        assertEquals(912, Geometry.snapToNearestEdgeX(5000, 160, 1080, 8))
+    }
+
+    @Test
+    fun `normalized position survives portrait-landscape round trips`() {
+        // Save in portrait (1080x2280 usable), restore in landscape (2280x1080 usable).
+        val (fx, fy) = Geometry.normalizePosition(1000, 1500, 1080 - 160, 2280 - 160)
+        val (lx, ly) = Geometry.denormalizePosition(fx, fy, 2280 - 160, 1080 - 160)
+        // Result must be inside the landscape movable area, never off-screen.
+        assertTrue(lx in 0..(2280 - 160))
+        assertTrue(ly in 0..(1080 - 160))
+    }
+
+    @Test
+    fun `denormalize clamps out-of-range fractions`() {
+        assertEquals(0 to 0, Geometry.denormalizePosition(-2f, -0.5f, 1000, 1000))
+        assertEquals(1000 to 1000, Geometry.denormalizePosition(3f, 1.5f, 1000, 1000))
+    }
+
+    @Test
+    fun `normalize tolerates zero-sized ranges`() {
+        val (fx, fy) = Geometry.normalizePosition(50, 50, 0, 0)
+        assertEquals(0f, fx)
+        assertEquals(0f, fy)
+    }
 }

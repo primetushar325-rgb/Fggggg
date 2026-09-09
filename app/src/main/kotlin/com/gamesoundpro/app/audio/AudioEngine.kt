@@ -3,6 +3,7 @@ package com.gamesoundpro.app.audio
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes as LegacyAudioAttributes
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -167,6 +168,24 @@ class AudioEngine(
                 applyMusicVolume()
                 if (s.audioFocusBehavior == AudioFocusBehavior.NONE) abandonEffectFocus()
             }
+        }
+        // [AudioRoute] logging: react to output device changes (headset/BT plug events)
+        // by refreshing the published route — this is also what makes routing diagnostics
+        // live without any polling.
+        try {
+            audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {
+                override fun onAudioDeviceAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                    DebugLog.d("AudioRoute", "device added type=${addedDevices.firstOrNull()?.type ?: -1}")
+                    publishSnapshot { copy(audioRoute = audioRoute()) }
+                }
+
+                override fun onAudioDeviceRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                    DebugLog.d("AudioRoute", "device removed type=${removedDevices.firstOrNull()?.type ?: -1}")
+                    publishSnapshot { copy(audioRoute = audioRoute()) }
+                }
+            }, mainHandler)
+        } catch (t: Throwable) {
+            DebugLog.w("AudioRoute", "device callback registration failed", t)
         }
         scope.launch {
             // Progress ticker for the music UI. Cheap: reads the player only while playing.
@@ -777,12 +796,16 @@ class AudioEngine(
     private fun publishSnapshot(transform: AudioSnapshot.() -> AudioSnapshot) {
         _snapshot.update { current ->
             val next = current.transform()
-            next.copy(
-                effectPlayersAlive = slots.count { it.isActive },
-                musicPlayerCreated = musicPlayerField != null,
-                mediaVolumePercent = mediaVolumePercent(),
-                audioRoute = audioRoute(),
-            )
+                .copy(
+                    effectPlayersAlive = slots.count { it.isActive },
+                    musicPlayerCreated = musicPlayerField != null,
+                    mediaVolumePercent = mediaVolumePercent(),
+                )
+            val route = audioRoute()
+            if (route != current.audioRoute) {
+                DebugLog.d("AudioRoute", "route ${current.audioRoute} -> $route")
+            }
+            next.copy(audioRoute = route)
         }
     }
 

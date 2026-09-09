@@ -91,6 +91,8 @@ class OverlayService : Service() {
     // Bubble (always attached while the service runs)
     private var bubbleView: View? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+    private var iconSizePx: Int = 0
+    private var iconGesture: FloatingIconTouchController? = null
 
     // Sidebar (attached only in SIDEBAR_OPEN — attach/detach NEVER touches the service)
     private var sidebarView: View? = null
@@ -154,8 +156,44 @@ class OverlayService : Service() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        // Re-render after rotation so nothing sits off-screen; state machine keeps its state.
-        mainHandler.post { reconcile() }
+        DebugLog.d("Overlay", "configuration changed -> re-clamping overlay for new bounds")
+        mainHandler.post {
+            // Sidebar was laid out for the old bounds — rebuild it for the new orientation.
+            detachSidebar()
+            reClampBubble()
+            reconcile()
+        }
+    }
+
+    /**
+     * Keeps the icon inside the current screen bounds (rotation, foldables, split screen).
+     * Positions are stored as fractions of the movable area, so a portrait-saved position
+     * lands somewhere sensible in landscape instead of off-screen (V1 restore bug).
+     */
+    private fun reClampBubble() {
+        val view = bubbleView ?: return
+        val params = bubbleParams ?: return
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        params.x = Geometry.coerceNonNegative(params.x, screenW - iconSizePx)
+        params.y = Geometry.coerceNonNegative(params.y, screenH - iconSizePx)
+        try {
+            if (view.isAttachedToWindow) windowManager?.updateViewLayout(view, params)
+            saveIconPosition(params)
+        } catch (t: Throwable) {
+            DebugLog.w("Overlay", "re-clamp failed", t)
+        }
+    }
+
+    /** Persists the icon position as orientation-safe fractions (0..1 of movable area). */
+    private fun saveIconPosition(params: WindowManager.LayoutParams) {
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val availW = (screenW - iconSizePx).coerceAtLeast(1)
+        val availH = (screenH - iconSizePx).coerceAtLeast(1)
+        val (fx, fy) = Geometry.normalizePosition(params.x, params.y, availW, availH)
+        serviceScope.launch { settings.setOverlayPositionNormalized(fx, fy) }
+        DebugLog.d("Overlay", "icon position saved (${("%.2f".format(fx))}, ${("%.2f".format(fy))})")
     }
 
     private fun startAsForeground() {
@@ -251,14 +289,29 @@ class OverlayService : Service() {
             android.graphics.PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = Geometry.coerceNonNegative(
-                savedOrDefault(settings.snapshot.overlayX) { dp(12) },
-                Int.MAX_VALUE,
-            )
-            y = Geometry.coerceNonNegative(
-                savedOrDefault(settings.snapshot.overlayY) { dp(320) },
-                Int.MAX_VALUE,
-            )
+            val screenW = resources.displayMetrics.widthPixels
+            val screenH = resources.displayMetrics.heightPixels
+            val sidePx = dp((56 * scale).toInt())
+            val availW = (screenW - sidePx).coerceAtLeast(0)
+            val availH = (screenH - sidePx).coerceAtLeast(0)
+            // Restore: normalized fractions first (orientation-safe); legacy absolute px as
+            // fallback; defaults when never saved. Everything is clamped into safe bounds.
+            val nx = settings.snapshot.overlayNormX
+            val ny = settings.snapshot.overlayNormY
+            val (x0, y0) = if (!nx.isNaN() && !ny.isNaN()) {
+                Geometry.denormalizePosition(nx, ny, availW, availH)
+            } else if (settings.snapshot.overlayX != Int.MIN_VALUE && settings.snapshot.overlayY != Int.MIN_VALUE) {
+                Geometry.denormalizePosition(
+                    settings.snapshot.overlayX / 10_000f,
+                    settings.snapshot.overlayY / 10_000f,
+                    availW, availH,
+                )
+            } else {
+                dp(12) to (availH * 2 / 3)
+            }
+            x = Geometry.coerceNonNegative(x0, availW)
+            y = Geometry.coerceNonNegative(y0, availH)
+            DebugLog.d("Overlay", "bubble restore ($x,$y) of ${availW}x$availH")
         }
 
         val side = (56 * scale).toInt()
@@ -276,6 +329,7 @@ class OverlayService : Service() {
             }
             layoutParams = FrameLayout.LayoutParams(dp(side), dp(side))
         }
+        iconSizePx = dp(side)
         attachDragAndClick(content, params) { toggleSidebar() }
 
         val frame = FrameLayout(this)
@@ -308,51 +362,61 @@ class OverlayService : Service() {
         if (saved == Int.MIN_VALUE) fallback() else saved
 
     /**
-     * Shared drag + click behavior: dragging moves the window (persisting the last position),
-     * a tap without movement runs [onClick]. All exceptions are contained so a bad touch
-     * event can never kill the service.
+     * Shared drag + click behavior for the floating icon, backed by
+     * [FloatingIconTouchController]: a tap toggles the sidebar, a drag moves the icon and
+     * can NEVER trigger the toggle. The platform touch slop (density-correct) decides.
      */
     private fun attachDragAndClick(view: View, params: WindowManager.LayoutParams, onClick: () -> Unit) {
-        var downRawX = 0f
-        var downRawY = 0f
-        var startX = 0
-        var startY = 0
-        var moved = false
-        view.setOnTouchListener { v, event ->
-            try {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        downRawX = event.rawX
-                        downRawY = event.rawY
-                        startX = params.x
-                        startY = params.y
-                        moved = false
-                        true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = event.rawX - downRawX
-                        val dy = event.rawY - downRawY
-                        if (abs(dx) > TOUCH_SLOP_PX || abs(dy) > TOUCH_SLOP_PX) moved = true
-                        if (moved) {
-                            val screenW = resources.displayMetrics.widthPixels
-                            val screenH = resources.displayMetrics.heightPixels
-                            params.x = Geometry.coerceNonNegative((startX + dx).toInt(), screenW - dp(56))
-                            params.y = Geometry.coerceNonNegative((startY + dy).toInt(), screenH - dp(56))
-                            runCatching { windowManager?.updateViewLayout(v, params) }
-                        }
-                        true
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        if (moved) {
-                            serviceScope.launch { settings.setOverlayPosition(params.x, params.y) }
-                        } else {
-                            v.performClick()
-                            onClick()
-                        }
-                        true
-                    }
-                    else -> false
+        val touchSlop = android.view.ViewConfiguration.get(this).scaledTouchSlop
+        var startPX = 0
+        var startPY = 0
+        var downX = 0
+        var downY = 0
+
+        iconGesture = FloatingIconTouchController(touchSlop, object : FloatingIconTouchController.Callbacks {
+            override fun onDragStart(x: Int, y: Int) {
+                startPX = params.x
+                startPY = params.y
+                downX = x
+                downY = y
+            }
+
+            override fun onDragMoved(x: Int, y: Int) {
+                try {
+                    val screenW = resources.displayMetrics.widthPixels
+                    val screenH = resources.displayMetrics.heightPixels
+                    params.x = Geometry.coerceNonNegative(startPX + (x - downX), screenW - iconSizePx)
+                    params.y = Geometry.coerceNonNegative(startPY + (y - downY), screenH - iconSizePx)
+                    if (view.isAttachedToWindow) windowManager?.updateViewLayout(view, params)
+                } catch (t: Throwable) {
+                    DebugLog.e("Drag", "move failed", t)
                 }
+            }
+
+            override fun onDragEnd() {
+                // Snap to the nearest horizontal edge (assistant-bubble behavior), then save.
+                try {
+                    val screenW = resources.displayMetrics.widthPixels
+                    params.x = Geometry.snapToNearestEdgeX(params.x, iconSizePx, screenW, dp(8))
+                    if (view.isAttachedToWindow) windowManager?.updateViewLayout(view, params)
+                    saveIconPosition(params)
+                } catch (t: Throwable) {
+                    DebugLog.e("Drag", "end failed", t)
+                }
+            }
+
+            override fun onTap() {
+                try {
+                    view.performClick()
+                } catch (_: Throwable) {
+                }
+                onClick()
+            }
+        })
+
+        view.setOnTouchListener { _, event ->
+            try {
+                iconGesture?.feed(event.actionMasked, event.rawX, event.rawY) ?: false
             } catch (t: Throwable) {
                 // Never let a touch event crash the overlay.
                 DebugLog.e(TAG, "touch handler failed", t)
@@ -373,6 +437,7 @@ class OverlayService : Service() {
         }
         lastToggleAt = now
         val newState = stateMachine.toggle()
+        DebugLog.d("Click", if (newState == OverlayUiState.SIDEBAR_OPEN) "Sidebar OPEN" else "Sidebar CLOSED")
         DebugLog.d("OverlayState", "toggle -> $newState")
         if (newState == OverlayUiState.BUBBLE_ONLY) collapseKeyboard()
         reconcile()
@@ -895,7 +960,6 @@ class OverlayService : Service() {
     companion object {
         private const val TAG = "OverlayService"
         private const val NOTIFICATION_ID = 41
-        private const val TOUCH_SLOP_PX = 10
         private const val TOGGLE_DEBOUNCE_MS = 220L
     }
 }

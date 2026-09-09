@@ -58,6 +58,30 @@ V2 hardens the two subsystems that matter most in-game:
 - **Structured debug logs** in debug builds: `[OverlayService] [OverlayState] [AudioEngine]
   [AudioFocus] [Playback] [Permission]`.
 
+## 🧭 V3 — floating icon gestures + audio routing diagnostics
+
+- **Tap/drag separation done properly** (`FloatingIconTouchController`): the platform's
+  density-correct touch slop classifies each gesture through an explicit
+  `IDLE → TRACKING → DRAGGING` state machine. A drag can *never* toggle the sidebar; a tap
+  never moves the icon. On release the icon **snaps to the nearest screen edge**.
+- **Orientation-safe position memory**: the icon position is persisted as *fractions of the
+  movable area*, so a position saved in portrait restores correctly in landscape (and after
+  restart) instead of landing off-screen. Configuration changes re-clamp the icon and
+  rebuild the sidebar for the new bounds.
+- **Audio Routing Diagnostics** (Settings → Audio diagnostics): microphone/overlay
+  permissions, engine, focus, live output route (speaker/wired/Bluetooth — updates on plug
+  events via `AudioDeviceCallback`, no polling), microphone hardware availability, Gaming
+  Mode — plus an **Audio Mode** panel that lists only outputs this device actually has.
+- **Three-step AUDIO TEST**: ① built-in test tone with an explicit “Can you hear this?”
+  YES/NO, ② an explicit 3-second microphone sample (`🔴 RECORDING`, `STOP NOW`, local
+  playback only), ③ a verdict — ending with the honest line:
+  **CROSS-APP MIC LOOPBACK: NOT AVAILABLE THROUGH STANDARD ANDROID API**, with the
+  explanation of why teammates can't hear the soundboard through game voice chat (no game
+  modification, no injection — by design).
+- Duplicate-service guard: enabling Gaming Mode twice never starts a second
+  `OverlayService`; `DebugLog` tags now include `[Overlay] [Drag] [Click] [Sidebar]
+  [AudioRoute]`.
+
 ## 🛡️ Safety, privacy & game compatibility
 
 - **No game interaction, ever.** The app cannot and does not modify game APKs, read game

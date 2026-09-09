@@ -116,6 +116,8 @@ data class AppSettings(
     val overlayScale: Float = 1f,
     val overlayX: Int = Int.MIN_VALUE,
     val overlayY: Int = Int.MIN_VALUE,
+    val overlayNormX: Float = Float.NaN,
+    val overlayNormY: Float = Float.NaN,
     val mixer: MixerVolumes = MixerVolumes(),
     val audioFocusBehavior: AudioFocusBehavior = AudioFocusBehavior.NONE,
     val overlayKeyboard: Boolean = true,
