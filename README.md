@@ -82,6 +82,22 @@ V2 hardens the two subsystems that matter most in-game:
   `OverlayService`; `DebugLog` tags now include `[Overlay] [Drag] [Click] [Sidebar]
   [AudioRoute]`.
 
+## 🎵 V4 — stable music player + audio behavior
+
+- **Audio Behavior setting** (Settings → Playback): *Continue when possible* / *Pause on
+  focus loss* / *Duck when possible* — how music responds when another app (or a game)
+  requests audio focus. Mapped onto Media3's native focus handling; the engine is never
+  destroyed by focus changes.
+- **Now Playing card on Home**: artwork, title, live progress and play/next controls; tap
+  to open the full player.
+- **Artist metadata** in the full player (extracted alongside artwork in one pass).
+- **Music in the gaming sidebar**: taps on MUSIC-category sounds in the floating sidebar
+  stream through the music player (loop/shuffle/seek capable), while all other categories
+  use the low-latency effect pool — short SFX and long music stay on separate, optimized
+  paths.
+- **Storage dashboard** now splits Sounds / Music / Packs counts.
+- `[Service] [Playback] [AudioRoute]` structured logs for the playback service.
+
 ## 🛡️ Safety, privacy & game compatibility
 
 - **No game interaction, ever.** The app cannot and does not modify game APKs, read game

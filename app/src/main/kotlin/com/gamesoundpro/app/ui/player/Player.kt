@@ -243,9 +243,10 @@ fun PlayerSheet(
         return
     }
 
-    val artwork by produceState<Bitmap?>(initialValue = null, key1 = track.filePath) {
-        value = withContext(Dispatchers.IO) { AudioFiles.extractArtwork(track.filePath) }
+    val trackMeta by produceState<AudioFiles.TrackMeta?>(initialValue = null, key1 = track.filePath) {
+        value = withContext(Dispatchers.IO) { AudioFiles.extractTrackMeta(track.filePath) }
     }
+    val artwork = trackMeta?.artwork
 
     var dragging by remember { mutableFloatStateOf(-1f) }
 
@@ -277,6 +278,16 @@ fun PlayerSheet(
             }
             Spacer(Modifier.height(16.dp))
             Text(track.name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val artist = trackMeta?.artist
+            if (!artist.isNullOrBlank()) {
+                Text(
+                    artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
                 "${Format.duration(state.positionMs)} / ${Format.duration(state.durationMs)}",
                 style = MaterialTheme.typography.bodySmall,

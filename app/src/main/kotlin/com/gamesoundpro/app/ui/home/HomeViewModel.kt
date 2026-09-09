@@ -39,7 +39,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     val activeSounds = container.audioEngine.activeSounds
 
+    val musicState = container.audioEngine.musicState
+
     fun play(sound: SoundEntity) = container.audioEngine.playSound(sound)
+
+    fun playPauseMusic() = container.audioEngine.playPauseMusic()
+
+    fun nextTrack() = container.audioEngine.nextTrack()
 
     fun toggleFavorite(sound: SoundEntity) {
         viewModelScope.launch { repository.toggleFavorite(sound) }

@@ -140,6 +140,7 @@ class OverlayService : Service() {
             return START_NOT_STICKY
         }
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        DebugLog.d("Service", "OVERLAY_SERVICE_RUNNING")
         reconcile()
         startObserving()
         return START_STICKY
@@ -823,7 +824,15 @@ class OverlayService : Service() {
             isFocusable = true
             setOnClickListener {
                 try {
-                    engine.playSound(sound)
+                    if (sound.category == com.gamesoundpro.app.domain.Category.MUSIC.key) {
+                        // Music taps stream through the music player (loop/shuffle/seek-capable),
+                        // not the short-SFX pool.
+                        val tracks = allSounds.filter { it.category == com.gamesoundpro.app.domain.Category.MUSIC.key }
+                        val index = tracks.indexOfFirst { it.id == sound.id }.coerceAtLeast(0)
+                        engine.playMusic(tracks, index)
+                    } else {
+                        engine.playSound(sound)
+                    }
                 } catch (t: Throwable) {
                     DebugLog.e(TAG, "play failed sound=${sound.name}", t)
                     updateStatusText("⚠ Playback failed")

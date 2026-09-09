@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import com.gamesoundpro.app.utils.DebugLog
 
 /**
  * Foreground media-playback service: keeps music playing per Android background-audio rules
@@ -32,6 +33,7 @@ class PlaybackNotificationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        DebugLog.d("Service", "PLAYBACK_SERVICE running startId=$startId action=${intent?.action ?: "start"}")
         when (intent?.action) {
             ACTION_PLAY_PAUSE -> engine.playPauseMusic()
             ACTION_NEXT -> engine.nextTrack()
@@ -60,6 +62,7 @@ class PlaybackNotificationService : Service() {
     }
 
     override fun onDestroy() {
+        DebugLog.d("Service", "PLAYBACK_SERVICE stopped")
         scope.cancel()
         super.onDestroy()
     }

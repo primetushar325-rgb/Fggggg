@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gamesoundpro.app.database.entity.SoundPackEntity
 import com.gamesoundpro.app.domain.AppSettings
+import com.gamesoundpro.app.domain.AudioBehaviorOnFocusLoss
 import com.gamesoundpro.app.domain.AudioFocusBehavior
 import com.gamesoundpro.app.domain.ThemeMode
 import com.gamesoundpro.app.permissions.Permissions
@@ -213,6 +214,22 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(6.dp))
+                Text("Audio behavior (music vs other apps)", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AudioBehaviorOnFocusLoss.entries.forEach { behavior ->
+                        FilterChip(
+                            selected = settings.audioBehavior == behavior,
+                            onClick = { viewModel.setAudioBehavior(behavior) },
+                            label = { Text(behavior.short) },
+                        )
+                    }
+                }
+                Text(
+                    settings.audioBehavior.hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
                 Text(
                     "Default sound volume · ${Format.percent(settings.defaultVolume / 1.5f)}",
                     style = MaterialTheme.typography.titleSmall,
@@ -306,8 +323,8 @@ fun SettingsScreen(
         GlassSurface(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "${storage?.totalSounds ?: 0} Sounds · ${storage?.totalPacks ?: 0} Packs · " +
-                        "${Format.bytes(storage?.audioBytes ?: 0)} used",
+                    "${storage?.totalSounds ?: 0} Sounds · ${storage?.totalMusic ?: 0} Music · " +
+                        "${storage?.totalPacks ?: 0} Packs · ${Format.bytes(storage?.audioBytes ?: 0)} used",
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Text(

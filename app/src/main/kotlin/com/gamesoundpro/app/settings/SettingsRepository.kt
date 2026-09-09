@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.gamesoundpro.app.domain.AppSettings
+import com.gamesoundpro.app.domain.AudioBehaviorOnFocusLoss
 import com.gamesoundpro.app.domain.AudioFocusBehavior
 import com.gamesoundpro.app.domain.MixerVolumes
 import com.gamesoundpro.app.domain.ThemeMode
@@ -44,6 +45,7 @@ class SettingsRepository(private val context: Context) {
         val OVERLAY_NORM_Y = floatPreferencesKey("overlay_norm_y")
         val SEED_DONE = booleanPreferencesKey("seed_done")
         val AUDIO_FOCUS = intPreferencesKey("audio_focus_behavior")
+        val AUDIO_BEHAVIOR = intPreferencesKey("audio_behavior_on_focus_loss")
         val OVERLAY_KEYBOARD = booleanPreferencesKey("overlay_keyboard")
         val OVERLAY_FILTER = stringPreferencesKey("overlay_filter")
         val VOL_EFFECTS = floatPreferencesKey("vol_effects")
@@ -89,6 +91,11 @@ class SettingsRepository(private val context: Context) {
                 1 -> AudioFocusBehavior.DUCK_OTHERS
                 else -> AudioFocusBehavior.NONE
             },
+            audioBehavior = when (this[Keys.AUDIO_BEHAVIOR] ?: 1) {
+                0 -> AudioBehaviorOnFocusLoss.CONTINUE
+                2 -> AudioBehaviorOnFocusLoss.DUCK
+                else -> AudioBehaviorOnFocusLoss.PAUSE
+            },
             overlayKeyboard = this[Keys.OVERLAY_KEYBOARD] ?: true,
             overlayFilter = this[Keys.OVERLAY_FILTER] ?: "all",
             mixer = MixerVolumes(
@@ -120,6 +127,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAudioFocusBehavior(behavior: AudioFocusBehavior) =
         edit { it[Keys.AUDIO_FOCUS] = behavior.ordinal }
+
+    suspend fun setAudioBehavior(behavior: AudioBehaviorOnFocusLoss) =
+        edit { it[Keys.AUDIO_BEHAVIOR] = behavior.ordinal }
 
     suspend fun setOverlayKeyboard(enabled: Boolean) = edit { it[Keys.OVERLAY_KEYBOARD] = enabled }
 

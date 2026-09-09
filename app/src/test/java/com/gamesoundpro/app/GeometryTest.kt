@@ -2,6 +2,7 @@ package com.gamesoundpro.app
 
 import com.gamesoundpro.app.utils.Geometry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**

@@ -40,6 +40,9 @@ interface SoundDao {
     @Query("SELECT COUNT(*) FROM sounds")
     suspend fun count(): Int
 
+    @Query("SELECT COUNT(*) FROM sounds WHERE category = :category")
+    suspend fun countByCategory(category: String): Int
+
     @Query("SELECT COALESCE(SUM(sizeBytes), 0) FROM sounds")
     suspend fun totalBytes(): Long
 

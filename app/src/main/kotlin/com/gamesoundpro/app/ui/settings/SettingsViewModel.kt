@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamesoundpro.app.GameSoundProApp
 import com.gamesoundpro.app.domain.AppSettings
+import com.gamesoundpro.app.domain.AudioBehaviorOnFocusLoss
 import com.gamesoundpro.app.domain.AudioFocusBehavior
 import com.gamesoundpro.app.domain.MixerVolumes
 import com.gamesoundpro.app.domain.StorageStats
@@ -51,6 +52,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setOverlayScale(scale: Float) = viewModelScope.launch { settingsRepository.setOverlayScale(scale) }
     fun setAudioFocusBehavior(behavior: AudioFocusBehavior) =
         viewModelScope.launch { settingsRepository.setAudioFocusBehavior(behavior) }
+
+    fun setAudioBehavior(behavior: AudioBehaviorOnFocusLoss) =
+        viewModelScope.launch { settingsRepository.setAudioBehavior(behavior) }
     fun setOverlayKeyboard(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setOverlayKeyboard(enabled) }
     fun resetOverlayPosition() = viewModelScope.launch { settingsRepository.resetOverlayPosition() }

@@ -24,6 +24,7 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.gamesoundpro.app.R
 import com.gamesoundpro.app.database.entity.SoundEntity
 import com.gamesoundpro.app.domain.ActiveSound
+import com.gamesoundpro.app.domain.AudioBehaviorOnFocusLoss
 import com.gamesoundpro.app.domain.AudioFocusBehavior
 import com.gamesoundpro.app.domain.Category
 import com.gamesoundpro.app.domain.MixerVolumes
@@ -144,6 +145,7 @@ class AudioEngine(
     @Volatile private var volumes: MixerVolumes = settings.snapshot.mixer
     @Volatile private var duckingEnabled: Boolean = settings.snapshot.ducking
     @Volatile private var focusBehavior: AudioFocusBehavior = settings.snapshot.audioFocusBehavior
+    @Volatile private var audioBehavior: AudioBehaviorOnFocusLoss = settings.snapshot.audioBehavior
 
     private var effectFocusRequest: AudioFocusRequest? = null
     private var effectFocusHeld = false
@@ -164,8 +166,10 @@ class AudioEngine(
                 volumes = s.mixer
                 duckingEnabled = s.ducking
                 focusBehavior = s.audioFocusBehavior
+                audioBehavior = s.audioBehavior
                 applyVolumesToSlots()
                 applyMusicVolume()
+                applyAudioBehavior()
                 if (s.audioFocusBehavior == AudioFocusBehavior.NONE) abandonEffectFocus()
             }
         }
@@ -524,13 +528,18 @@ class AudioEngine(
     // =====================================================================================
 
     private fun createMusicPlayer(): ExoPlayer = ExoPlayer.Builder(context).build().apply {
-        setAudioAttributes(MEDIA_ATTRS, /* handleAudioFocus = */ true)
+        setAudioAttributes(MEDIA_ATTRS, /* handleAudioFocus = */ audioBehavior != AudioBehaviorOnFocusLoss.CONTINUE)
         setHandleAudioBecomingNoisy(true)
         repeatMode = Player.REPEAT_MODE_ALL
         addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    DebugLog.d("Playback", "PLAY ${playlist.getOrNull(currentMediaItemIndexSafe())?.name ?: "music"}")
+                    startPlaybackService()
+                } else {
+                    DebugLog.d("Playback", "PAUSED")
+                }
                 refreshMusicState()
-                if (isPlaying) startPlaybackService()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) = refreshMusicState()
@@ -676,6 +685,23 @@ class AudioEngine(
 
     private fun applyMusicVolume() {
         musicPlayerField?.volume = volumes.effectiveMusic().coerceIn(0f, 1f)
+    }
+
+    /**
+     * Maps the user's Audio Behavior setting onto the music player's focus handling:
+     * CONTINUE → Media3 does not manage focus (music plays regardless of other apps);
+     * PAUSE / DUCK → Media3 manages focus (pauses on loss; DUCK additionally lowers the
+     * volume automatically for transient-can-duck requests and resumes afterwards).
+     */
+    private fun applyAudioBehavior() {
+        val player = musicPlayerField ?: return
+        val handleFocus = audioBehavior != AudioBehaviorOnFocusLoss.CONTINUE
+        try {
+            player.setAudioAttributes(MEDIA_ATTRS, handleFocus)
+            DebugLog.d("AudioFocus", "music behavior=${audioBehavior.name} handleFocus=$handleFocus")
+        } catch (t: Throwable) {
+            DebugLog.w("AudioFocus", "applyAudioBehavior failed", t)
+        }
     }
 
     /** Live music volume (mixer slider). Persisting is done by the caller. */

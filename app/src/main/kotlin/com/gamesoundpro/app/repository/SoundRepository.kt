@@ -259,6 +259,7 @@ class SoundRepository(
         val cache = AudioFiles.sizeOf(context.cacheDir) + (context.externalCacheDir?.let { AudioFiles.sizeOf(it) } ?: 0L)
         StorageStats(
             totalSounds = soundDao.count(),
+            totalMusic = soundDao.countByCategory(com.gamesoundpro.app.domain.Category.MUSIC.key),
             totalPacks = packDao.count(),
             audioBytes = soundDao.totalBytes(),
             cacheBytes = cache,

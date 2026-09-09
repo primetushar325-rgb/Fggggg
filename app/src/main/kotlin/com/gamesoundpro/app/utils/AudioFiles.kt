@@ -64,6 +64,27 @@ object AudioFiles {
         null
     }
 
+    data class TrackMeta(val artwork: android.graphics.Bitmap?, val artist: String?)
+
+    /** Artwork + artist in a single retrieval pass (one MediaMetadataRetriever lifecycle). */
+    fun extractTrackMeta(path: String): TrackMeta = TrackMeta(
+        artwork = extractArtwork(path),
+        artist = extractArtist(path),
+    )
+
+    /** Embedded artist tag (falls back to album artist), or null when absent. */
+    fun extractArtist(path: String): String? = try {
+        MediaMetadataRetriever().use { retriever ->
+            retriever.setDataSource(path)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                ?.takeIf { it.isNotBlank() }
+                ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                    ?.takeIf { it.isNotBlank() }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     /** MediaMetadataRetriever implements AutoCloseable from API 29; provide our own close helper. */
     private inline fun <T> MediaMetadataRetriever.use(block: (MediaMetadataRetriever) -> T): T {
         try {

@@ -1,5 +1,6 @@
 package com.gamesoundpro.app.ui.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -29,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +51,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gamesoundpro.app.database.entity.SoundEntity
+import com.gamesoundpro.app.domain.MusicState
+import com.gamesoundpro.app.utils.AudioFiles
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.gamesoundpro.app.database.entity.SoundPackEntity
 import com.gamesoundpro.app.permissions.Permissions
 import com.gamesoundpro.app.ui.components.SectionHeader
@@ -69,6 +81,7 @@ fun HomeScreen(
     val packs by viewModel.packs.collectAsStateWithLifecycle()
     val soundCount by viewModel.soundCount.collectAsStateWithLifecycle()
     val active by viewModel.activeSounds.collectAsStateWithLifecycle()
+    val music by viewModel.musicState.collectAsStateWithLifecycle()
 
     var showOverlayRationale by remember { mutableStateOf(false) }
     val gamingOn = settings.gamingMode
@@ -106,6 +119,17 @@ fun HomeScreen(
                     }
                 },
             )
+        }
+
+        if (music.track != null) {
+            item {
+                NowPlayingCard(
+                    state = music,
+                    onToggle = viewModel::playPauseMusic,
+                    onNext = viewModel::nextTrack,
+                    onOpen = onOpenPlayer,
+                )
+            }
         }
 
         item {
@@ -316,6 +340,100 @@ private fun PackCard(pack: SoundPackEntity, onClick: () -> Unit) {
             ) { Text(pack.icon, fontSize = 18.sp) }
             Spacer(Modifier.height(8.dp))
             Text(pack.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+
+@Composable
+private fun NowPlayingCard(
+    state: MusicState,
+    onToggle: () -> Unit,
+    onNext: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    val track = state.track ?: return
+    val meta by produceState<AudioFiles.TrackMeta?>(initialValue = null, key1 = track.filePath) {
+        value = withContext(Dispatchers.IO) { AudioFiles.extractTrackMeta(track.filePath) }
+    }
+    GlassSurface(modifier = Modifier
+        .fillMaxWidth()
+        .clickable(onClick = onOpen), cornerRadius = 18.dp) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val bitmap = meta?.artwork
+            Box(
+                Modifier
+                    .size(54.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Album artwork",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(54.dp),
+                    )
+                } else {
+                    Text("🎵", fontSize = 22.sp)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "NOW PLAYING",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    track.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                val fraction = if (state.durationMs > 0) {
+                    (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f)
+                } else 0f
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(fraction)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    com.gamesoundpro.app.utils.Format.duration(state.positionMs) + " / " +
+                        com.gamesoundpro.app.utils.Format.duration(state.durationMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+            IconButton(onClick = onToggle) {
+                Icon(
+                    if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = "Play or pause",
+                )
+            }
+            IconButton(onClick = onNext) {
+                Icon(Icons.Rounded.SkipNext, contentDescription = "Next track")
+            }
         }
     }
 }

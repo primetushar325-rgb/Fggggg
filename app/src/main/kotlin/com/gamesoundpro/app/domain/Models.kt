@@ -76,6 +76,7 @@ data class MusicState(
 /** Aggregated storage numbers for the Settings → Storage section. */
 data class StorageStats(
     val totalSounds: Int,
+    val totalMusic: Int,
     val totalPacks: Int,
     val audioBytes: Long,
     val cacheBytes: Long,
@@ -85,6 +86,19 @@ enum class ThemeMode(val label: String) {
     SYSTEM("System"),
     DARK("Dark"),
     LIGHT("Light");
+}
+
+/**
+ * How MUSIC behaves when another app requests audio focus (Settings → Playback → Audio
+ * Behavior). Effects have their own policy ([AudioFocusBehavior]).
+ * CONTINUE keeps music playing when possible; PAUSE defers to the other app; DUCK defers
+ * on transient loss but lowers volume for transient-can-duck requests (Media3 handles the
+ * ducking curve natively).
+ */
+enum class AudioBehaviorOnFocusLoss(val short: String, val label: String, val hint: String) {
+    CONTINUE("Continue", "Continue when possible", "Music keeps playing when other apps request focus"),
+    PAUSE("Pause", "Pause on focus loss", "Music pauses when another app takes audio focus"),
+    DUCK("Duck", "Duck when possible", "Music lowers volume for transient requests (auto-resumes)"),
 }
 
 /**
@@ -120,6 +134,7 @@ data class AppSettings(
     val overlayNormY: Float = Float.NaN,
     val mixer: MixerVolumes = MixerVolumes(),
     val audioFocusBehavior: AudioFocusBehavior = AudioFocusBehavior.NONE,
+    val audioBehavior: AudioBehaviorOnFocusLoss = AudioBehaviorOnFocusLoss.PAUSE,
     val overlayKeyboard: Boolean = true,
     val overlayFilter: String = "all",
     val seedDone: Boolean = false,
