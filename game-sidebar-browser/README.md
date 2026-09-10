@@ -112,6 +112,26 @@ game-sidebar-browser/
 
 ---
 
+## Getting an APK
+
+Two ways:
+
+**1. Download the CI-built APK** (no local setup). Every green build of `main` - and of a PR from
+this repository - republishes the APK behind one permanent link:
+
+```
+https://github.com/primetushar325-rgb/Fggggg/releases/download/game-sidebar-latest/game-sidebar-debug.apk
+```
+
+It is a debug build signed with the debug key (package `com.gamesidebar.browser.debug`, so it
+installs alongside a release build). Enable "Install unknown apps" for your browser or file
+manager, install, and grant the overlay permission on first launch. The workflow that builds it is
+`.github/workflows/game-sidebar-apk.yml`: it installs SDK platform 35, runs `:core:test` through
+Gradle, runs `:app:assembleDebug`, uploads the APK as a workflow artifact and republishes the
+release.
+
+**2. Build it yourself** - see below.
+
 ## Build and run
 
 Requirements: Android Studio (Ladybug or newer), JDK 17, Android SDK 35.
@@ -124,7 +144,11 @@ cd game-sidebar-browser
 `compileSdk` / `targetSdk` 35, `minSdk` 26, Kotlin 2.0.20, AGP 8.7.3, KSP for Room.
 
 The first build needs network access to resolve AGP, AndroidX and Compose from Google's Maven
-repository.
+repository. The output lands at `app/build/outputs/apk/debug/app-debug.apk`.
+
+A release APK (`./gradlew assembleRelease`) currently signs with the debug config - that is
+deliberate, so the project builds out of the box. Point `signingConfigs` at a real keystore before
+publishing anywhere.
 
 ---
 
