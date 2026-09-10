@@ -8,12 +8,17 @@ import android.text.TextWatcher
 
 open class TextView(context: Context) : android.view.View(context) {
     var text: CharSequence? = null
-    var textColor: Int = 0
+    fun setTextColor(color: Int) {}
+    /** The real getter is getCurrentTextColor(), not getTextColor() - so Kotlin sees no property. */
+    fun getCurrentTextColor(): Int = 0
     var textSize: Float = 14f
     var maxLines: Int = Int.MAX_VALUE
-    var isSingleLine: Boolean = false
-    var hintTextColor: Int = 0
     var minLines: Int = 1
+
+    fun setHintTextColor(color: Int) {}
+    fun getCurrentHintTextColor(): Int = 0
+    /** Setter only - TextView has no getSingleLine(), so Kotlin sees no property. */
+    fun setSingleLine(singleLine: Boolean) {}
     var gravity: Int = 0
     var typeface: android.graphics.Typeface? = null
 

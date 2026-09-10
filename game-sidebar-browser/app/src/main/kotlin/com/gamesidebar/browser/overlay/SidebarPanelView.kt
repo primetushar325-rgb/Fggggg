@@ -345,14 +345,14 @@ class SidebarPanelView(
 
             chip.addView(TextView(context).apply {
                 text = (tab.faviconKey ?: UrlResolver.hostOf(tab.url)?.take(1)?.uppercase()) ?: "•"
-                textColor = if (active) Color.parseColor("#4C8DFF") else Color.parseColor("#B3FFFFFF")
+                setTextColor(if (active) Color.parseColor("#4C8DFF") else Color.parseColor("#B3FFFFFF"))
                 textSize = 11f
                 setPadding(0, 0, dp(6f), 0)
             })
 
             chip.addView(TextView(context).apply {
                 text = Tabs.shortenTitle(tab.displayTitle, 14)
-                textColor = if (active) Color.WHITE else Color.parseColor("#B3FFFFFF")
+                setTextColor(if (active) Color.WHITE else Color.parseColor("#B3FFFFFF"))
                 textSize = 12f
                 maxLines = 1
             })
@@ -402,7 +402,7 @@ class SidebarPanelView(
             })
             column.addView(TextView(context).apply {
                 text = shortcut.normalizedTitle.take(10)
-                textColor = Color.parseColor("#B3FFFFFF")
+                setTextColor(Color.parseColor("#B3FFFFFF"))
                 textSize = 9f
                 maxLines = 1
                 gravity = Gravity.CENTER
@@ -439,15 +439,15 @@ class SidebarPanelView(
         val titleField = EditText(context).apply {
             hint = context.getString(R.string.shortcuts_name)
             text = existing?.title.orEmpty()
-            textColor = Color.WHITE
-            hintTextColor = Color.parseColor("#80FFFFFF")
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.parseColor("#80FFFFFF"))
             maxLines = 1
         }
         val urlFieldEditor = EditText(context).apply {
             hint = context.getString(R.string.shortcuts_url)
             text = existing?.url.orEmpty()
-            textColor = Color.WHITE
-            hintTextColor = Color.parseColor("#80FFFFFF")
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.parseColor("#80FFFFFF"))
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
             maxLines = 1
         }
@@ -540,7 +540,7 @@ class SidebarPanelView(
 
         fun toolChip(labelRes: Int, factory: () -> View): TextView = TextView(context).apply {
             setText(labelRes)
-            textColor = Color.WHITE
+            setTextColor(Color.WHITE)
             textSize = 11f
             gravity = Gravity.CENTER
             setBackgroundResource(R.drawable.bg_chip)
@@ -566,7 +566,7 @@ class SidebarPanelView(
 
         val close = TextView(context).apply {
             setText(R.string.panel_browser)
-            textColor = Color.parseColor("#4C8DFF")
+            setTextColor(Color.parseColor("#4C8DFF"))
             textSize = 11f
             gravity = Gravity.CENTER
             setBackgroundResource(R.drawable.bg_chip)
@@ -671,7 +671,7 @@ class SidebarPanelView(
         pendingDownload = request
         val message = TextView(context).apply {
             text = "${request.fileName}\n${request.sizeLabel} -> ${request.targetSubdir}"
-            textColor = Color.WHITE
+            setTextColor(Color.WHITE)
             textSize = 13f
             setPadding(dp(20f), dp(12f), dp(20f), dp(4f))
         }

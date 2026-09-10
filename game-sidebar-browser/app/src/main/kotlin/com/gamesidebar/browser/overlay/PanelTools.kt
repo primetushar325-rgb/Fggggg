@@ -67,7 +67,7 @@ object PanelTools {
         val display = TextView(context).apply {
             text = "0"
             textSize = 26f
-            textColor = Color.WHITE
+            setTextColor(Color.WHITE)
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             maxLines = 1
             setPadding(context.dpPx(14f), context.dpPx(16f), context.dpPx(14f), context.dpPx(10f))
@@ -89,7 +89,7 @@ object PanelTools {
                 text = label
                 textSize = 17f
                 gravity = Gravity.CENTER
-                textColor = if (accent) ACCENT else Color.WHITE
+                setTextColor(if (accent) ACCENT else Color.WHITE)
                 setBackgroundResource(R.drawable.bg_tool_key)
                 layoutParams = GridLayout.LayoutParams().apply {
                     width = 0
@@ -145,7 +145,7 @@ object PanelTools {
         val label = TextView(context).apply {
             text = TimerState.formatClock(0, withCentiseconds = true)
             textSize = 34f
-            textColor = Color.WHITE
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             typeface = Typeface.create("monospace", Typeface.BOLD)
             setPadding(0, context.dpPx(18f), 0, context.dpPx(8f))
@@ -252,8 +252,8 @@ object PanelTools {
 
         val search = EditText(context).apply {
             hint = context.getString(R.string.notes_search)
-            textColor = Color.WHITE
-            hintTextColor = MUTED
+            setTextColor(Color.WHITE)
+            setHintTextColor(MUTED)
             setBackgroundResource(R.drawable.bg_url_field)
             inputType = InputType.TYPE_CLASS_TEXT
             maxLines = 1
@@ -312,7 +312,7 @@ object PanelTools {
                 row.setPadding(context.dpPx(8f), context.dpPx(6f), context.dpPx(8f), context.dpPx(6f))
                 val text = TextView(context).apply {
                     text = ClipboardOps.preview(item.text)
-                    textColor = Color.WHITE
+                    setTextColor(Color.WHITE)
                     textSize = 12f
                     maxLines = 2
                 }
@@ -401,7 +401,7 @@ object PanelTools {
 
     private fun chipButton(context: Context, @StringRes labelRes: Int): TextView = TextView(context).apply {
         setText(labelRes)
-        textColor = Color.WHITE
+        setTextColor(Color.WHITE)
         textSize = 12f
         gravity = Gravity.CENTER
         setBackgroundResource(R.drawable.bg_chip)
@@ -416,7 +416,7 @@ object PanelTools {
         text = label
         textSize = 12f
         gravity = Gravity.CENTER
-        textColor = Color.WHITE
+        setTextColor(Color.WHITE)
         setBackgroundResource(R.drawable.bg_chip)
         setPadding(context.dpPx(12f), context.dpPx(6f), context.dpPx(12f), context.dpPx(6f))
         layoutParams = LinearLayout.LayoutParams(
@@ -478,7 +478,7 @@ object PanelTools {
     private fun emptyHint(context: Context, @StringRes titleRes: Int, @StringRes bodyRes: Int): TextView =
         TextView(context).apply {
             text = context.getString(titleRes) + "\n" + context.getString(bodyRes)
-            textColor = MUTED
+            setTextColor(MUTED)
             textSize = 12f
             gravity = Gravity.CENTER
             setPadding(context.dpPx(16f), context.dpPx(24f), context.dpPx(16f), context.dpPx(24f))
@@ -496,13 +496,13 @@ object PanelTools {
         val textColumn = vertical(context)
         textColumn.addView(TextView(context).apply {
             text = note.title.ifBlank { note.preview }
-            textColor = Color.WHITE
+            setTextColor(Color.WHITE)
             textSize = 13f
             maxLines = 1
         })
         textColumn.addView(TextView(context).apply {
             text = Formatting.relativeTime(note.updatedAt, System.currentTimeMillis())
-            textColor = MUTED
+            setTextColor(MUTED)
             textSize = 11f
         })
         row.addView(textColumn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -537,8 +537,8 @@ object PanelTools {
         val title = EditText(context).apply {
             hint = context.getString(R.string.notes_hint_title)
             text = initialTitle
-            textColor = Color.WHITE
-            hintTextColor = MUTED
+            setTextColor(Color.WHITE)
+            setHintTextColor(MUTED)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             maxLines = 1
             textSize = 14f
@@ -546,8 +546,8 @@ object PanelTools {
         val body = EditText(context).apply {
             hint = context.getString(R.string.notes_hint_body)
             text = initialBody
-            textColor = Color.WHITE
-            hintTextColor = MUTED
+            setTextColor(Color.WHITE)
+            setHintTextColor(MUTED)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             minLines = 3
             textSize = 14f
