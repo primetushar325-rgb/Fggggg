@@ -60,57 +60,57 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         val updated = transform(currentSettings())
-        context.settingsStore.edit {
-            this[Keys.AUTO_START] = updated.autoStartSidebar
-            this[Keys.REMEMBER_POSITION] = updated.rememberPosition
-            this[Keys.TAP_OUTSIDE] = updated.tapOutsideToClose
-            this[Keys.SEARCH_ENGINE] = updated.searchEngine.name
-            this[Keys.DESKTOP_MODE] = updated.desktopMode
-            this[Keys.JAVASCRIPT] = updated.javaScriptEnabled
-            this[Keys.COOKIES] = updated.cookiesEnabled
-            this[Keys.SWIPE_TABS] = updated.swipeBetweenTabs
-            this[Keys.HTTPS_PREFERRED] = updated.httpsPreferred
-            this[Keys.PANEL_SIZE] = updated.panelSize.name
-            this[Keys.PANEL_WIDTH_FRACTION] = updated.customPanelWidthFraction
-            this[Keys.PANEL_HEIGHT_FRACTION] = updated.customPanelHeightFraction
-            this[Keys.PANEL_V_ANCHOR] = updated.panelVerticalAnchor.name
-            this[Keys.PANEL_H_ANCHOR] = updated.panelHorizontalAnchor.name
-            this[Keys.AUTO_SNAP] = updated.autoSnap
-            this[Keys.EDGE_HIDE] = updated.edgeHideMode
-            this[Keys.HANDLE_SIZE] = updated.handleSize.name
-            this[Keys.HANDLE_V_ANCHOR] = updated.handleVerticalAnchor.name
-            this[Keys.HANDLE_H_ANCHOR] = updated.handleHorizontalAnchor.name
-            this[Keys.GAMING_MODE] = updated.gamingMode
-            this[Keys.REDUCED_ANIMATIONS] = updated.reducedAnimations
-            this[Keys.OPACITY] = updated.panelOpacity
-            this[Keys.GLOW_ENABLED] = updated.glowEnabled
-            this[Keys.GLOW_INTENSITY] = updated.glowIntensity.name
-            this[Keys.GLOW_COLOR] = updated.glowColor.name
-            this[Keys.SAVE_HISTORY] = updated.saveHistory
-            this[Keys.INCOGNITO] = updated.incognito
+        context.settingsStore.edit { prefs ->
+            prefs[Keys.AUTO_START] = updated.autoStartSidebar
+            prefs[Keys.REMEMBER_POSITION] = updated.rememberPosition
+            prefs[Keys.TAP_OUTSIDE] = updated.tapOutsideToClose
+            prefs[Keys.SEARCH_ENGINE] = updated.searchEngine.name
+            prefs[Keys.DESKTOP_MODE] = updated.desktopMode
+            prefs[Keys.JAVASCRIPT] = updated.javaScriptEnabled
+            prefs[Keys.COOKIES] = updated.cookiesEnabled
+            prefs[Keys.SWIPE_TABS] = updated.swipeBetweenTabs
+            prefs[Keys.HTTPS_PREFERRED] = updated.httpsPreferred
+            prefs[Keys.PANEL_SIZE] = updated.panelSize.name
+            prefs[Keys.PANEL_WIDTH_FRACTION] = updated.customPanelWidthFraction
+            prefs[Keys.PANEL_HEIGHT_FRACTION] = updated.customPanelHeightFraction
+            prefs[Keys.PANEL_V_ANCHOR] = updated.panelVerticalAnchor.name
+            prefs[Keys.PANEL_H_ANCHOR] = updated.panelHorizontalAnchor.name
+            prefs[Keys.AUTO_SNAP] = updated.autoSnap
+            prefs[Keys.EDGE_HIDE] = updated.edgeHideMode
+            prefs[Keys.HANDLE_SIZE] = updated.handleSize.name
+            prefs[Keys.HANDLE_V_ANCHOR] = updated.handleVerticalAnchor.name
+            prefs[Keys.HANDLE_H_ANCHOR] = updated.handleHorizontalAnchor.name
+            prefs[Keys.GAMING_MODE] = updated.gamingMode
+            prefs[Keys.REDUCED_ANIMATIONS] = updated.reducedAnimations
+            prefs[Keys.OPACITY] = updated.panelOpacity
+            prefs[Keys.GLOW_ENABLED] = updated.glowEnabled
+            prefs[Keys.GLOW_INTENSITY] = updated.glowIntensity.name
+            prefs[Keys.GLOW_COLOR] = updated.glowColor.name
+            prefs[Keys.SAVE_HISTORY] = updated.saveHistory
+            prefs[Keys.INCOGNITO] = updated.incognito
         }
     }
 
     suspend fun saveShortcuts(list: ShortcutList) {
-        context.settingsStore.edit { this[Keys.SHORTCUTS] = ShortcutCodec.encode(list.items) }
+        context.settingsStore.edit { prefs -> prefs[Keys.SHORTCUTS] = ShortcutCodec.encode(list.items) }
     }
 
     suspend fun resetShortcuts() {
-        context.settingsStore.edit { this[Keys.SHORTCUTS] = ShortcutCodec.encode(ShortcutCatalog.defaults) }
+        context.settingsStore.edit { prefs -> prefs[Keys.SHORTCUTS] = ShortcutCodec.encode(ShortcutCatalog.defaults) }
     }
 
     /** Stores fractions (0..1) rather than pixels so rotation and screen changes stay sane. */
     suspend fun saveHandlePosition(xFraction: Float, yFraction: Float) {
-        context.settingsStore.edit {
-            this[Keys.HANDLE_X_FRACTION] = xFraction.coerceIn(0f, 1f)
-            this[Keys.HANDLE_Y_FRACTION] = yFraction.coerceIn(0f, 1f)
+        context.settingsStore.edit { prefs ->
+            prefs[Keys.HANDLE_X_FRACTION] = xFraction.coerceIn(0f, 1f)
+            prefs[Keys.HANDLE_Y_FRACTION] = yFraction.coerceIn(0f, 1f)
         }
     }
 
     suspend fun clearHandlePosition() {
-        context.settingsStore.edit {
-            remove(Keys.HANDLE_X_FRACTION)
-            remove(Keys.HANDLE_Y_FRACTION)
+        context.settingsStore.edit { prefs ->
+            prefs.remove(Keys.HANDLE_X_FRACTION)
+            prefs.remove(Keys.HANDLE_Y_FRACTION)
         }
     }
 

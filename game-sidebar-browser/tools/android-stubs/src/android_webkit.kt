@@ -73,7 +73,6 @@ class WebSettings {
     var allowFileAccessFromFileURLs: Boolean = false
     var allowUniversalAccessFromFileURLs: Boolean = false
     var javaScriptCanOpenWindowsAutomatically: Boolean = false
-    var supportZoom: Boolean = true
     var builtInZoomControls: Boolean = true
     var displayZoomControls: Boolean = false
     var loadsImagesAutomatically: Boolean = true
@@ -87,6 +86,10 @@ class WebSettings {
     var safeBrowsingEnabled: Boolean = false
 
     fun setSupportMultipleWindows(support: Boolean) {}
+    /** The real getter is named `supportZoom()`, not `getSupportZoom()` - so Kotlin sees a
+     *  function pair and `supportZoom = true` must not compile. */
+    fun supportZoom(): Boolean = true
+    fun setSupportZoom(zoom: Boolean) {}
 }
 
 open class WebViewClient {

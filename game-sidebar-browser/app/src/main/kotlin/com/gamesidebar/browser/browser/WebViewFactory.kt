@@ -60,7 +60,7 @@ object WebViewFactory {
 
             loadWithOverviewMode = true
             useWideViewPort = true
-            supportZoom = true
+            setSupportZoom(true)
             builtInZoomControls = true
             displayZoomControls = false
             mediaPlaybackRequiresUserGesture = true
