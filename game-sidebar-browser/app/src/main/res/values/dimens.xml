@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overlay panel metrics. Sizes are also computed in core (OverlayGeometry); these are the
+         fixed chrome dimensions that the panel layout needs before any measurement happens. -->
+    <dimen name="panel_corner_radius">22dp</dimen>
+    <dimen name="panel_padding">10dp</dimen>
+    <dimen name="panel_header_height">40dp</dimen>
+    <dimen name="panel_toolbar_height">44dp</dimen>
+    <dimen name="panel_tab_height">34dp</dimen>
+    <dimen name="panel_shortcut_row_height">52dp</dimen>
+    <dimen name="panel_resize_grip">18dp</dimen>
+
+    <dimen name="handle_corner_radius">6dp</dimen>
+    <dimen name="handle_touch_padding">14dp</dimen>
+
+    <dimen name="icon_button">40dp</dimen>
+    <dimen name="icon_size">20dp</dimen>
+    <dimen name="shortcut_icon">22dp</dimen>
+    <dimen name="gap_small">4dp</dimen>
+    <dimen name="gap_medium">8dp</dimen>
+    <dimen name="gap_large">16dp</dimen>
+</resources>
