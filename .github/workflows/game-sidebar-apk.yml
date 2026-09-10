@@ -41,15 +41,20 @@ jobs:
 
       # kotlinc for the SDK-free checks in tools/. Pinned to the project's Kotlin version
       # (gradle/libs.versions.toml: kotlin = 2.0.20).
+      # The job-wide default working-directory is game-sidebar-browser/, so both npm steps pin
+      # themselves back to the workspace root - otherwise node_modules lands in the subproject and
+      # the jar lookup below finds nothing.
       - name: Install kotlinc
+        working-directory: ${{ github.workspace }}
         run: npm install --no-save --ignore-scripts kotlin-compiler@2.0.20
 
       - name: Locate KOTLIN_HOME
+        working-directory: ${{ github.workspace }}
         run: |
-          JAR=$(find "$GITHUB_WORKSPACE/node_modules/kotlin-compiler" -name kotlin-compiler.jar | head -1)
+          JAR=$(find "$GITHUB_WORKSPACE" -path '*node_modules/kotlin-compiler*' -name kotlin-compiler.jar 2>/dev/null | head -1)
           if [ -z "$JAR" ]; then
-            echo "::error::kotlin-compiler.jar not found under node_modules/kotlin-compiler"
-            find "$GITHUB_WORKSPACE/node_modules/kotlin-compiler" -maxdepth 2 | head -30
+            echo "::error::kotlin-compiler.jar not found anywhere under the workspace"
+            find "$GITHUB_WORKSPACE" -maxdepth 3 -name node_modules 2>/dev/null | head -10
             exit 1
           fi
           KH=$(cd "$(dirname "$JAR")/.." && pwd)
