@@ -263,7 +263,7 @@ class SidebarPanelView(
 
         urlField.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE) {
-                controller.submit(urlField.text.toString())
+                controller.submit(urlField.getText().toString())
                 urlField.clearFocus()
                 true
             } else {
@@ -344,14 +344,14 @@ class SidebarPanelView(
             }
 
             chip.addView(TextView(context).apply {
-                text = (tab.faviconKey ?: UrlResolver.hostOf(tab.url)?.take(1)?.uppercase()) ?: "•"
+                setText((tab.faviconKey ?: UrlResolver.hostOf(tab.url)?.take(1)?.uppercase()) ?: "•")
                 setTextColor(if (active) Color.parseColor("#4C8DFF") else Color.parseColor("#B3FFFFFF"))
                 textSize = 11f
                 setPadding(0, 0, dp(6f), 0)
             })
 
             chip.addView(TextView(context).apply {
-                text = Tabs.shortenTitle(tab.displayTitle, 14)
+                setText(Tabs.shortenTitle(tab.displayTitle, 14))
                 setTextColor(if (active) Color.WHITE else Color.parseColor("#B3FFFFFF"))
                 textSize = 12f
                 maxLines = 1
@@ -401,7 +401,7 @@ class SidebarPanelView(
                 layoutParams = LinearLayout.LayoutParams(dp(34f), dp(34f))
             })
             column.addView(TextView(context).apply {
-                text = shortcut.normalizedTitle.take(10)
+                setText(shortcut.normalizedTitle.take(10))
                 setTextColor(Color.parseColor("#B3FFFFFF"))
                 textSize = 9f
                 maxLines = 1
@@ -438,14 +438,14 @@ class SidebarPanelView(
         }
         val titleField = EditText(context).apply {
             hint = context.getString(R.string.shortcuts_name)
-            text = existing?.title.orEmpty()
+            setText(existing?.title.orEmpty())
             setTextColor(Color.WHITE)
             setHintTextColor(Color.parseColor("#80FFFFFF"))
             maxLines = 1
         }
         val urlFieldEditor = EditText(context).apply {
             hint = context.getString(R.string.shortcuts_url)
-            text = existing?.url.orEmpty()
+            setText(existing?.url.orEmpty())
             setTextColor(Color.WHITE)
             setHintTextColor(Color.parseColor("#80FFFFFF"))
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
@@ -459,7 +459,7 @@ class SidebarPanelView(
             context.getString(if (existing == null) R.string.shortcuts_add else R.string.shortcuts_edit),
             container,
         ) {
-            val error = ShortcutList.validate(titleField.text.toString(), urlFieldEditor.text.toString())
+            val error = ShortcutList.validate(titleField.getText().toString(), urlFieldEditor.getText().toString())
             if (error != null) {
                 PanelTools.toast(context, context.getString(stringForShortcutError(error)))
                 return@showOverlayDialog
@@ -469,15 +469,15 @@ class SidebarPanelView(
                     shortcuts.add(
                         com.gamesidebar.core.browser.Shortcut(
                             id = ShortcutList.newId(shortcuts.items),
-                            title = titleField.text.toString(),
-                            url = urlFieldEditor.text.toString(),
+                            title = titleField.getText().toString(),
+                            url = urlFieldEditor.getText().toString(),
                         ),
                     )
                 } else {
                     shortcuts.update(
                         existing.id,
-                        titleField.text.toString(),
-                        urlFieldEditor.text.toString(),
+                        titleField.getText().toString(),
+                        urlFieldEditor.getText().toString(),
                         existing.iconKey,
                     )
                 }
@@ -646,10 +646,10 @@ class SidebarPanelView(
     fun onUrlChanged(url: String, title: String) {
         if (!urlField.hasFocus()) {
             updatingUrlField = true
-            urlField.text = UrlResolver.displayUrl(url)
+            urlField.setText(UrlResolver.displayUrl(url))
             updatingUrlField = false
         }
-        panelTitle.text = title.ifBlank { context.getString(R.string.panel_title) }
+        panelTitle.setText(title.ifBlank { context.getString(R.string.panel_title) })
     }
 
     fun onNavigationChanged(canGoBack: Boolean, canGoForward: Boolean, isLoading: Boolean) {
@@ -670,7 +670,7 @@ class SidebarPanelView(
     fun onDownloadRequested(request: DownloadRequest) {
         pendingDownload = request
         val message = TextView(context).apply {
-            text = "${request.fileName}\n${request.sizeLabel} -> ${request.targetSubdir}"
+            setText("${request.fileName}\n${request.sizeLabel} -> ${request.targetSubdir}")
             setTextColor(Color.WHITE)
             textSize = 13f
             setPadding(dp(20f), dp(12f), dp(20f), dp(4f))

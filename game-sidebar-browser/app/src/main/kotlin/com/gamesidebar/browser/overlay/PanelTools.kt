@@ -65,7 +65,7 @@ object PanelTools {
         var expression = ""
 
         val display = TextView(context).apply {
-            text = "0"
+            setText("0")
             textSize = 26f
             setTextColor(Color.WHITE)
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -76,7 +76,7 @@ object PanelTools {
         root.addView(display, matchWidth())
 
         fun render() {
-            display.text = if (expression.isEmpty()) "0" else Calculator.toDisplayExpression(expression)
+            display.setText(if (expression.isEmpty()) "0" else Calculator.toDisplayExpression(expression))
         }
 
         val keys = GridLayout(context).apply {
@@ -86,7 +86,7 @@ object PanelTools {
 
         fun addKey(label: String, span: Int = 1, accent: Boolean = false, action: () -> Unit) {
             val key = TextView(context).apply {
-                text = label
+                setText(label)
                 textSize = 17f
                 gravity = Gravity.CENTER
                 setTextColor(if (accent) ACCENT else Color.WHITE)
@@ -124,7 +124,7 @@ object PanelTools {
         addKey("=", span = 4, accent = true) {
             when (val result = Calculator.evaluate(expression)) {
                 is Calculator.Result.Value -> expression = result.display
-                is Calculator.Result.Error -> display.text = context.stringForReason(result.reasonKey)
+                is Calculator.Result.Error -> display.setText(context.stringForReason(result.reasonKey))
                 Calculator.Result.Incomplete -> Unit
             }
             render()
@@ -143,7 +143,7 @@ object PanelTools {
         val handler = Handler(Looper.getMainLooper())
 
         val label = TextView(context).apply {
-            text = TimerState.formatClock(0, withCentiseconds = true)
+            setText(TimerState.formatClock(0, withCentiseconds = true))
             textSize = 34f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -164,7 +164,7 @@ object PanelTools {
             override fun run() {
                 val now = SystemClock.elapsedRealtime()
                 state = state.tick(now)
-                label.text = state.primaryLabel(now)
+                label.setText(state.primaryLabel(now))
                 if (state.running) {
                     handler.postDelayed(this, TICK_MS)
                 } else {
@@ -176,7 +176,7 @@ object PanelTools {
         fun stopTicking() = handler.removeCallbacks(tick)
 
         fun refresh() {
-            label.text = state.primaryLabel(SystemClock.elapsedRealtime())
+            label.setText(state.primaryLabel(SystemClock.elapsedRealtime()))
             startPause.setText(if (state.running) R.string.timer_pause else R.string.timer_start)
         }
 
@@ -276,7 +276,7 @@ object PanelTools {
             val editor = noteEditor(context)
             showOverlayDialog(context, context.getString(R.string.notes_new), editor.first) {
                 scope.launch {
-                    repository.createNote(editor.second.text.toString(), editor.third.text.toString())
+                    repository.createNote(editor.second.getText().toString(), editor.third.getText().toString())
                 }
             }
         }
@@ -311,7 +311,7 @@ object PanelTools {
                 val row = horizontal(context, Gravity.CENTER_VERTICAL)
                 row.setPadding(context.dpPx(8f), context.dpPx(6f), context.dpPx(8f), context.dpPx(6f))
                 val text = TextView(context).apply {
-                    text = ClipboardOps.preview(item.text)
+                    setText(ClipboardOps.preview(item.text))
                     setTextColor(Color.WHITE)
                     textSize = 12f
                     maxLines = 2
@@ -331,7 +331,7 @@ object PanelTools {
         val capture = chipButton(context, R.string.clipboard_capture)
         capture.setOnClickListener {
             val clipboard = context.getSystemService(ClipboardManager::class.java)
-            val clip = clipboard?.primaryClip
+            val clip = clipboard?.getPrimaryClip()
             if (clip == null || clip.itemCount == 0) {
                 render(ClipboardHistory.snapshot())
                 return@setOnClickListener
@@ -413,7 +413,7 @@ object PanelTools {
     }
 
     private fun chip(context: Context, label: String, onClick: () -> Unit): TextView = TextView(context).apply {
-        text = label
+        setText(label)
         textSize = 12f
         gravity = Gravity.CENTER
         setTextColor(Color.WHITE)
@@ -477,7 +477,7 @@ object PanelTools {
 
     private fun emptyHint(context: Context, @StringRes titleRes: Int, @StringRes bodyRes: Int): TextView =
         TextView(context).apply {
-            text = context.getString(titleRes) + "\n" + context.getString(bodyRes)
+            setText(context.getString(titleRes) + "\n" + context.getString(bodyRes))
             setTextColor(MUTED)
             textSize = 12f
             gravity = Gravity.CENTER
@@ -495,13 +495,13 @@ object PanelTools {
 
         val textColumn = vertical(context)
         textColumn.addView(TextView(context).apply {
-            text = note.title.ifBlank { note.preview }
+            setText(note.title.ifBlank { note.preview })
             setTextColor(Color.WHITE)
             textSize = 13f
             maxLines = 1
         })
         textColumn.addView(TextView(context).apply {
-            text = Formatting.relativeTime(note.updatedAt, System.currentTimeMillis())
+            setText(Formatting.relativeTime(note.updatedAt, System.currentTimeMillis()))
             setTextColor(MUTED)
             textSize = 11f
         })
@@ -518,7 +518,7 @@ object PanelTools {
             val editor = noteEditor(context, note.title, note.body)
             showOverlayDialog(context, context.getString(R.string.action_edit), editor.first) {
                 scope.launch {
-                    repository.updateNote(note.id, editor.second.text.toString(), editor.third.text.toString())
+                    repository.updateNote(note.id, editor.second.getText().toString(), editor.third.getText().toString())
                 }
             }
         })
@@ -536,7 +536,7 @@ object PanelTools {
         val container = vertical(context)
         val title = EditText(context).apply {
             hint = context.getString(R.string.notes_hint_title)
-            text = initialTitle
+            setText(initialTitle)
             setTextColor(Color.WHITE)
             setHintTextColor(MUTED)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
@@ -545,7 +545,7 @@ object PanelTools {
         }
         val body = EditText(context).apply {
             hint = context.getString(R.string.notes_hint_body)
-            text = initialBody
+            setText(initialBody)
             setTextColor(Color.WHITE)
             setHintTextColor(MUTED)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -590,7 +590,7 @@ object PanelTools {
 
     private fun copyToClipboard(context: Context, text: String) {
         val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
-        clipboard.primaryClip = ClipData.newPlainText("Game SideBar", text)
+        clipboard.setPrimaryClip(ClipData.newPlainText("Game SideBar", text))
     }
 
     private fun Context.dpPx(value: Float): Int = (value * resources.displayMetrics.density + 0.5f).toInt()

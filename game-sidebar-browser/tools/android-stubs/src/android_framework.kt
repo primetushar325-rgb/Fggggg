@@ -103,7 +103,12 @@ abstract class BroadcastReceiver {
 }
 
 class ClipboardManager {
-    var primaryClip: ClipData? = null
+    /**
+     * Method pair, not a property: the platform getter is @Nullable and the setter is not, so the
+     * types do not match and Kotlin only synthesises a read-only `primaryClip`.
+     */
+    fun getPrimaryClip(): ClipData? = null
+    fun setPrimaryClip(clip: ClipData) {}
 }
 
 class ClipData {
