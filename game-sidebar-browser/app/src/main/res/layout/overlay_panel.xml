@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The floating sidebar panel. Plain framework widgets on purpose: this layout lives inside a
+  WindowManager overlay, so no AppCompat/Material inflation and no theme dependency.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/panelRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_panel"
+    android:clipChildren="false">
+
+    <LinearLayout
+        android:id="@+id/panelContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="@dimen/panel_padding">
+
+        <!-- Header: drag handle, product mark, title, minimize, close -->
+        <LinearLayout
+            android:id="@+id/panelHeader"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/panel_header_height"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/dragHandle"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:contentDescription="@string/panel_drag"
+                android:padding="10dp"
+                android:src="@drawable/ic_drag"
+                android:tint="@color/text_muted" />
+
+            <ImageView
+                android:layout_width="@dimen/icon_size"
+                android:layout_height="@dimen/icon_size"
+                android:layout_marginStart="@dimen/gap_small"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_browser"
+                android:tint="@color/accent_blue" />
+
+            <TextView
+                android:id="@+id/panelTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/gap_medium"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/panel_title"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/buttonTools"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/panel_tools"
+                android:padding="10dp"
+                android:src="@drawable/ic_tabs"
+                android:tint="@color/text_secondary" />
+
+            <ImageView
+                android:id="@+id/buttonMinimize"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/panel_minimize"
+                android:padding="10dp"
+                android:src="@drawable/ic_minimize"
+                android:tint="@color/text_secondary" />
+
+            <ImageView
+                android:id="@+id/buttonClose"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/panel_close"
+                android:padding="10dp"
+                android:src="@drawable/ic_close"
+                android:tint="@color/text_secondary" />
+        </LinearLayout>
+
+        <!-- Tab strip -->
+        <HorizontalScrollView
+            android:id="@+id/tabScroll"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/panel_tab_height"
+            android:layout_marginTop="@dimen/gap_small"
+            android:fillViewport="false"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/tabStrip"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- Address bar -->
+        <LinearLayout
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/panel_toolbar_height"
+            android:layout_marginTop="@dimen/gap_small"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/buttonBack"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/action_back"
+                android:padding="10dp"
+                android:src="@drawable/ic_back"
+                android:tint="@color/text_secondary" />
+
+            <ImageView
+                android:id="@+id/buttonForward"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/action_forward"
+                android:padding="10dp"
+                android:src="@drawable/ic_forward"
+                android:tint="@color/text_secondary" />
+
+            <EditText
+                android:id="@+id/urlField"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="@dimen/gap_small"
+                android:layout_marginEnd="@dimen/gap_small"
+                android:layout_weight="1"
+                android:background="@drawable/bg_url_field"
+                android:hint="@string/url_hint"
+                android:imeOptions="actionGo"
+                android:importantForAutofill="no"
+                android:inputType="textUri"
+                android:maxLines="1"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:singleLine="true"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <ImageView
+                android:id="@+id/buttonReload"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/action_reload"
+                android:padding="10dp"
+                android:src="@drawable/ic_reload"
+                android:tint="@color/text_secondary" />
+
+            <ImageView
+                android:id="@+id/buttonBookmark"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/action_bookmark"
+                android:padding="10dp"
+                android:src="@drawable/ic_bookmark"
+                android:tint="@color/text_secondary" />
+
+            <ImageView
+                android:id="@+id/buttonMore"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/action_more"
+                android:padding="10dp"
+                android:src="@drawable/ic_more"
+                android:tint="@color/text_secondary" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/pageProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_marginTop="@dimen/gap_small"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="@color/accent_blue"
+            android:visibility="invisible" />
+
+        <!-- Quick website shortcuts -->
+        <HorizontalScrollView
+            android:id="@+id/shortcutScroll"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/panel_shortcut_row_height"
+            android:layout_marginTop="@dimen/gap_small"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/shortcutRow"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- Body: web content, tools, or an error state -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="@dimen/gap_small"
+            android:layout_weight="1">
+
+            <FrameLayout
+                android:id="@+id/webContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <FrameLayout
+                android:id="@+id/toolsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/errorView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_error"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="@dimen/gap_large"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/errorIcon"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_warning"
+                    android:tint="@color/accent_red" />
+
+                <TextView
+                    android:id="@+id/errorTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/gap_medium"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/errorBody"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/gap_small"
+                    android:gravity="center"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/errorAction"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_marginTop="@dimen/gap_large"
+                    android:background="@drawable/bg_chip"
+                    android:gravity="center"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="@string/action_retry"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- HTML5 fullscreen video is layered above everything else inside the panel window. -->
+    <FrameLayout
+        android:id="@+id/fullscreenContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/background"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/buttonExitFullscreen"
+            android:layout_width="@dimen/icon_button"
+            android:layout_height="@dimen/icon_button"
+            android:layout_gravity="top|end"
+            android:layout_margin="@dimen/gap_medium"
+            android:background="@drawable/bg_icon_button"
+            android:contentDescription="@string/panel_exit_fullscreen"
+            android:padding="10dp"
+            android:src="@drawable/ic_fullscreen_exit"
+            android:tint="@color/text_primary" />
+    </FrameLayout>
+
+    <View
+        android:id="@+id/resizeGrip"
+        android:layout_width="@dimen/panel_resize_grip"
+        android:layout_height="@dimen/panel_resize_grip"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/gap_small"
+        android:background="@drawable/bg_resize_grip" />
+</FrameLayout>

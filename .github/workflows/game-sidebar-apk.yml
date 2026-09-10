@@ -1,0 +1,143 @@
+name: Game SideBar APK
+
+# Builds a real, installable APK for game-sidebar-browser.
+#
+# The APK cannot be produced in the sandbox this project was written in (dl.google.com,
+# maven.google.com and repo1.maven.org are unreachable there, so there is no Android SDK, no AGP and
+# no AndroidX/Compose artifacts). GitHub's runners have all three, so the build runs here instead and
+# publishes the APK behind one permanent link.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'game-sidebar-browser/**'
+      - '.github/workflows/game-sidebar-apk.yml'
+  pull_request:
+    paths:
+      - 'game-sidebar-browser/**'
+      - '.github/workflows/game-sidebar-apk.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: game-sidebar-browser
+
+jobs:
+  verify:
+    name: Core engine + app compile check (no Android SDK needed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # kotlinc for the SDK-free checks in tools/. Pinned to the project's Kotlin version
+      # (gradle/libs.versions.toml: kotlin = 2.0.20).
+      # The job-wide default working-directory is game-sidebar-browser/, so both npm steps pin
+      # themselves back to the workspace root - otherwise node_modules lands in the subproject and
+      # the jar lookup below finds nothing.
+      - name: Install kotlinc
+        working-directory: ${{ github.workspace }}
+        run: npm install --no-save --ignore-scripts kotlin-compiler@2.0.20
+
+      - name: Locate KOTLIN_HOME
+        working-directory: ${{ github.workspace }}
+        run: |
+          JAR=$(find "$GITHUB_WORKSPACE" -path '*node_modules/kotlin-compiler*' -name kotlin-compiler.jar 2>/dev/null | head -1)
+          if [ -z "$JAR" ]; then
+            echo "::error::kotlin-compiler.jar not found anywhere under the workspace"
+            find "$GITHUB_WORKSPACE" -maxdepth 3 -name node_modules 2>/dev/null | head -10
+            exit 1
+          fi
+          KH=$(cd "$(dirname "$JAR")/.." && pwd)
+          echo "KOTLIN_HOME=$KH" >> "$GITHUB_ENV"
+          echo "resolved KOTLIN_HOME=$KH"
+
+      - name: Run 141 core tests and compile the whole app module
+        run: |
+          set +e
+          bash tools/verify_all.sh 2>&1 | tee verify.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "verify_all exited $rc — surfacing failure lines as annotations"
+            grep -nE "error:|FAIL|failed|Exception|AssertionError|expected" verify.log \
+              | head -40 | while IFS= read -r line; do echo "::error::${line:0:600}"; done
+            exit 1
+          fi
+
+  apk:
+    name: Debug APK (Gradle + Android SDK)
+    runs-on: ubuntu-latest
+    permissions:
+      # Publishing the rolling APK release (a permanent direct download link) needs repo write.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      # The runner image ships an SDK, but not necessarily platform 35 / build-tools 35, which
+      # compileSdk = 35 requires.
+      - name: Make sure SDK platform 35 and build-tools are installed
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/android-sdk}}"
+          SDKMANAGER=$(find "$SDK" -path '*/cmdline-tools/*/bin/sdkmanager' -o -name sdkmanager -type f 2>/dev/null | head -1)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+            "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+          else
+            echo "sdkmanager not found; relying on the preinstalled SDK"
+          fi
+
+      - name: Core unit tests through Gradle (the same 141 cases)
+        run: ./gradlew :core:test --stacktrace
+
+      - name: Build debug APK
+        run: |
+          set +e
+          ./gradlew :app:assembleDebug --stacktrace 2>&1 | tee gradle.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            echo "gradle exited $rc — surfacing failure lines as annotations"
+            {
+              sed -n '/FAILURE: Build failed/,/^* Try:/p' gradle.log
+              grep -nE "error:|e: |Caused by|Exception" gradle.log | head -25
+            } | grep -v '^$' | head -45 | while IFS= read -r line; do echo "::error::${line:0:600}"; done
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: game-sidebar-debug-apk
+          path: game-sidebar-browser/app/build/outputs/apk/debug/*.apk
+
+      # Rolling release: every green build replaces the APK behind one permanent direct link —
+      #   https://github.com/<owner>/Fggggg/releases/download/game-sidebar-latest/game-sidebar-debug.apk
+      # (Skipped for fork PRs, whose token is read-only.)
+      - name: Publish APK to the rolling release (direct download)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="game-sidebar-latest"
+          cd "$GITHUB_WORKSPACE"
+          gh release delete "$TAG" --cleanup-tag -y || true
+          cp game-sidebar-browser/app/build/outputs/apk/debug/app-debug.apk game-sidebar-debug.apk
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Game SideBar Browser - debug APK (latest build)" \
+            --notes "Auto-published by CI run $GITHUB_RUN_ID. Offline-installable debug build (package com.gamesidebar.browser.debug, so it installs alongside any release build). This is the same code that passed the 141 core tests and the app compile check in the verify job." \
+            game-sidebar-debug.apk
