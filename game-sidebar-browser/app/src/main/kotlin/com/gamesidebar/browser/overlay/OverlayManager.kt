@@ -11,8 +11,11 @@ import com.gamesidebar.browser.browser.BrowserController
 import com.gamesidebar.browser.data.ServiceLocator
 import com.gamesidebar.browser.util.ScreenMetrics
 import com.gamesidebar.core.download.DownloadRequest
+import com.gamesidebar.core.geometry.ChromeLayout
 import com.gamesidebar.core.geometry.Edge
 import com.gamesidebar.core.geometry.OverlayGeometry
+import com.gamesidebar.core.geometry.PanelPlacement
+import com.gamesidebar.core.geometry.PanelResize
 import com.gamesidebar.core.geometry.Point
 import com.gamesidebar.core.geometry.PxSize
 import com.gamesidebar.core.geometry.Screen
@@ -68,6 +71,32 @@ class OverlayManager(
     private var repositionMode = false
     private var started = false
 
+    /**
+     * The three states the overlay can be in, and the only transitions between them:
+     *
+     *   COLLAPSED (!panelOpen)  -> NORMAL (panelOpen)                open / tap the handle
+     *   NORMAL                  -> VIDEO_FULLSCREEN (videoFullscreen) page asks for fullscreen
+     *   VIDEO_FULLSCREEN        -> NORMAL                             page or user leaves fullscreen
+     *   NORMAL                  -> COLLAPSED                          minimise / close
+     *
+     * Keeping fullscreen as an explicit flag rather than as "a big panelSize" is what stops the two
+     * from being mixed: a rotation or a settings write while a video plays must re-apply the
+     * fullscreen bounds, not re-anchor a panel that is temporarily the whole screen.
+     */
+    private var videoFullscreen = false
+
+    /** Panel rectangle to put back when fullscreen ends. */
+    private var fullscreenRestore: Pair<PxSize, Point>? = null
+
+    /** Panel origin at the start of a resize gesture; resize deltas are absolute against it. */
+    private var resizeAnchorOrigin = Point(0, 0)
+
+    /** True once the handle has been given a starting point, so seeding never overwrites a saved one. */
+    private var geometrySeeded = false
+
+    /** True while the open panel covers the handle and its window is therefore touch-transparent. */
+    private var handleCovered = false
+
     private val controller: BrowserController by lazy {
         BrowserController(
             context = context,
@@ -86,6 +115,7 @@ class OverlayManager(
         if (started) return
         started = true
         refreshScreen()
+        seedGeometry()
         applyInitialSettings()
 
         scope.launch {
@@ -108,6 +138,9 @@ class OverlayManager(
     }
 
     fun stop() {
+        // hidePanel already persisted the rectangle; this covers the case where the service is stopped
+        // while the panel was open through a path that did not go through it.
+        if (panelOpen) persistPanelFrame()
         hidePanel(immediate = true)
         removeHandle()
         controller.destroy()
@@ -119,6 +152,36 @@ class OverlayManager(
     fun refreshScreen() {
         density = ScreenMetrics.density(context)
         screen = ScreenMetrics.screen(context)
+    }
+
+    /**
+     * Gives both overlay windows a usable rectangle before any asynchronous read has answered.
+     *
+     * The service can be started and asked to open the panel in the same call, and the settings live in
+     * DataStore - so without this the window would be added at 0x0 and refined a moment later, which is
+     * indistinguishable from "the sidebar did not appear". [applyInitialSettings] then replaces these
+     * values with the persisted ones as soon as they are read.
+     */
+    private fun seedGeometry() {
+        handleSizePx = OverlayGeometry.handleSize(settings.handleSize, density)
+        if (!geometrySeeded) {
+            handleOrigin = OverlayGeometry.defaultHandlePoint(handleSizePx, screen)
+            geometrySeeded = true
+        }
+        val placement = OverlayGeometry.placement(
+            settings.panelVerticalAnchor,
+            settings.panelHorizontalAnchor,
+            OverlayGeometry.panelSize(
+                settings.panelSize,
+                settings.customPanelWidthFraction,
+                settings.customPanelHeightFraction,
+                screen,
+                density,
+            ),
+            screen,
+        )
+        panelSize = placement.size
+        panelOrigin = placement.origin
     }
 
     // ---------------------------------------------------------------- handle
@@ -149,6 +212,7 @@ class OverlayManager(
             handleParams = params
             handleVisible = true
             applyHandleAppearance()
+            updateHandleCoverage()
         }
     }
 
@@ -199,26 +263,59 @@ class OverlayManager(
             panelOpen = true
             animatePanelIn(view)
             view.onPanelShown()
+            applyChromeToPanel()
+            updateHandleCoverage()
             service.onPanelStateChanged(true)
         }.onFailure {
             service.onOverlayFailed()
         }
     }
 
+    /**
+     * Tells the panel which chrome rows fit the height it currently has.
+     *
+     * Called whenever the rectangle changes - open, resize end, rotation, leaving fullscreen - and not
+     * during a drag, so a resize reports a new height on every move event without the toolbar
+     * flickering. `SidebarPanelView.applyChrome` ignores a repeat of the same layout.
+     */
+    private fun applyChromeToPanel() {
+        if (videoFullscreen) return
+        val layout: ChromeLayout = OverlayGeometry.chromeLayout(panelSize.heightPx, density)
+        panelView?.applyChrome(layout)
+    }
+
+    /**
+     * Writes the live panel rectangle as fractions of the usable screen.
+     *
+     * Called at the end of a gesture and on collapse only - never during a move - so dragging or
+     * resizing costs one small DataStore write each instead of one per frame.
+     */
+    private fun persistPanelFrame() {
+        if (!settings.rememberPosition) return
+        if (panelSize.widthPx <= 0 || panelSize.heightPx <= 0) return
+        val frame = OverlayGeometry.frameOf(panelOrigin, panelSize, screen)
+        scope.launch { locator.settingsRepository.savePanelFrame(frame) }
+    }
+
     fun hidePanel(immediate: Boolean = false) {
         val view = panelView ?: return
         if (!panelOpen) return
         panelOpen = false
+        // Collapse is one of the "sensible points" to persist: reopening has to bring back exactly this
+        // rectangle, and the service may not survive until the next write.
+        persistPanelFrame()
         view.onPanelHidden()
         service.onPanelStateChanged(false)
 
         val finish = {
             view.teardown()
             runCatching { windowManager.removeViewImmediate(view) }
-            // The panel is torn down on minimise, which is what releases WebView memory while the
-            // game is being played. Tabs and their state live in the controller, not the view.
+            // Only the panel *view* goes away. The WebView, its tabs, the current URL and any playing
+            // video stay alive inside the controller, which is what makes reopening instant instead of
+            // a reload - collapsing the sidebar must not cost the user their browser session.
             panelView = null
             panelParams = null
+            updateHandleCoverage()
         }
 
         if (immediate || settings.gamingMode || settings.reducedAnimations) {
@@ -256,41 +353,86 @@ class OverlayManager(
         scope.launch {
             settings = locator.settingsRepository.currentSettings()
             handleSizePx = OverlayGeometry.handleSize(settings.handleSize, density)
-            panelSize = OverlayGeometry.panelSize(
-                settings.panelSize,
-                settings.customPanelWidthFraction,
-                settings.customPanelHeightFraction,
-                screen,
-                density,
-            )
             restoreHandlePosition()
-            applyPanelAnchor()
+            resolvePanelGeometry()
+            if (panelOpen) applyPanelWindow()
         }
     }
 
+    /**
+     * Decides the panel rectangle when nothing more specific is known.
+     *
+     * The remembered rectangle wins, because it is the size and position the user actually left the
+     * sidebar at - reopening must not reset it to a preset. Only when there is none (first run,
+     * "Remember position" off, or a size preset just chosen) does the panel fall back to its preset
+     * size and anchor. Everything is resolved against the *current* screen, so a rectangle saved in
+     * portrait comes back as the same relative rectangle in landscape.
+     */
+    private suspend fun resolvePanelGeometry() {
+        val saved = if (settings.rememberPosition) locator.settingsRepository.currentPanelFrame() else null
+        val placement = if (saved != null) {
+            OverlayGeometry.placementOf(saved, screen, density)
+        } else {
+            OverlayGeometry.placement(
+                settings.panelVerticalAnchor,
+                settings.panelHorizontalAnchor,
+                OverlayGeometry.panelSize(
+                    settings.panelSize,
+                    settings.customPanelWidthFraction,
+                    settings.customPanelHeightFraction,
+                    screen,
+                    density,
+                ),
+                screen,
+            )
+        }
+        panelSize = placement.size
+        panelOrigin = placement.origin
+    }
+
     private fun onSettingsChanged(previous: AppSettings, latest: AppSettings) {
+        // Every write to the settings store re-emits the whole AppSettings - including the writes this
+        // class makes itself when it persists a panel or handle rectangle. Only the fields that really
+        // drive geometry may move anything, or a resize would snap the panel back to its preset anchor
+        // a moment after the user let go of it.
+        val handleGeometryChanged = previous.handleSize != latest.handleSize ||
+            previous.handleVerticalAnchor != latest.handleVerticalAnchor ||
+            previous.handleHorizontalAnchor != latest.handleHorizontalAnchor
+        val rememberChanged = previous.rememberPosition != latest.rememberPosition
+        val panelPresetChanged = previous.panelSize != latest.panelSize ||
+            previous.customPanelWidthFraction != latest.customPanelWidthFraction ||
+            previous.customPanelHeightFraction != latest.customPanelHeightFraction
+        val panelAnchorChanged = previous.panelVerticalAnchor != latest.panelVerticalAnchor ||
+            previous.panelHorizontalAnchor != latest.panelHorizontalAnchor
+
         handleSizePx = OverlayGeometry.handleSize(latest.handleSize, density)
-        panelSize = OverlayGeometry.panelSize(
-            latest.panelSize,
-            latest.customPanelWidthFraction,
-            latest.customPanelHeightFraction,
-            screen,
-            density,
-        )
         applyHandleAppearance()
         panelView?.applySettings(latest)
 
-        if (!latest.rememberPosition) {
-            placeHandleAtAnchor()
-        } else if (previous.handleSize != latest.handleSize ||
-            previous.handleVerticalAnchor != latest.handleVerticalAnchor ||
-            previous.handleHorizontalAnchor != latest.handleHorizontalAnchor
-        ) {
+        if (!latest.rememberPosition || handleGeometryChanged || rememberChanged) {
             placeHandleAtAnchor()
         }
 
-        if (panelOpen) {
+        // A video owns the whole window right now; its rectangle is restored on the way out, so
+        // applying panel geometry here would shrink the video mid-playback.
+        if (videoFullscreen) return
+
+        if (panelPresetChanged || panelAnchorChanged) {
+            // Explicit user intent about the panel rectangle: it beats the remembered one.
+            panelSize = OverlayGeometry.panelSize(
+                latest.panelSize,
+                latest.customPanelWidthFraction,
+                latest.customPanelHeightFraction,
+                screen,
+                density,
+            )
             applyPanelAnchor()
+            scope.launch { locator.settingsRepository.clearPanelFrame() }
+        } else {
+            // Nothing about the panel changed: keep the rectangle on screen, just make sure it still
+            // fits (the screen may have changed since it was chosen).
+            clampPanelIntoScreen()
+            if (panelOpen) applyPanelWindow()
         }
     }
 
@@ -319,6 +461,7 @@ class OverlayManager(
         updateHandleLayout()
     }
 
+    /** Puts the panel on its configured anchor - an explicit user choice, never a rotation. */
     private fun applyPanelAnchor() {
         val placement = OverlayGeometry.placement(
             settings.panelVerticalAnchor,
@@ -328,13 +471,32 @@ class OverlayManager(
         )
         panelOrigin = placement.origin
         panelSize = placement.size
+        applyPanelWindow()
+    }
+
+    /** Pushes the current rectangle to the window and re-fits the chrome to the new height. */
+    private fun applyPanelWindow() {
         val params = panelParams ?: return
+        val panel = panelView ?: return
         params.width = panelSize.widthPx
         params.height = panelSize.heightPx
         params.x = panelOrigin.x
         params.y = panelOrigin.y
-        val panel = panelView ?: return
         runCatching { windowManager.updateViewLayout(panel, params) }
+        applyChromeToPanel()
+        updateHandleCoverage()
+    }
+
+    /**
+     * Re-fits the remembered rectangle to the screen it is now on without moving it anywhere else.
+     *
+     * This is the "safe clamp" half of rotation handling: the size is brought inside the new limits and
+     * the origin is then clamped against that size, so the panel can never end up mostly off-screen.
+     */
+    private fun clampPanelIntoScreen() {
+        val size = OverlayGeometry.clampPanelSize(panelSize, screen, density)
+        panelSize = size
+        panelOrigin = OverlayGeometry.clampPanel(panelOrigin, size, screen)
     }
 
     private fun applyHandleAppearance() {
@@ -357,6 +519,36 @@ class OverlayManager(
         params.height = handleSizePx.heightPx + touchPadding * 2
         params.x = handleOrigin.x - touchPadding
         params.y = handleOrigin.y - touchPadding
+        runCatching { windowManager.updateViewLayout(view, params) }
+    }
+
+    /**
+     * Keeps the handle out of the way - and out of the game's input - while the open panel covers it.
+     *
+     * The handle window is bigger than the pill (it carries an invisible touch margin), so leaving it
+     * up underneath the panel meant a strip of the game stopped receiving touches for no reason. An
+     * invisible window still swallows input, which is why this clears `FLAG_NOT_TOUCHABLE` rather than
+     * just hiding the view: with the flag set, touches pass straight through to whatever is below.
+     *
+     * The handle is only covered when the panel really overlaps it - a panel anchored in one corner and
+     * a handle parked in the other both stay fully usable.
+     */
+    private fun updateHandleCoverage() {
+        val view = handleView ?: return
+        val params = handleParams ?: return
+        val covered = panelOpen && OverlayGeometry.overlaps(
+            PanelPlacement(panelOrigin, panelSize),
+            handleOrigin,
+            handleSizePx,
+        )
+        if (covered == handleCovered) return
+        handleCovered = covered
+        params.flags = if (covered) {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        } else {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        }
+        view.visibility = if (covered) View.INVISIBLE else View.VISIBLE
         runCatching { windowManager.updateViewLayout(view, params) }
     }
 
@@ -432,9 +624,7 @@ class OverlayManager(
             }
         }
         if (settings.rememberPosition) {
-            val xFraction = (handleOrigin.x - screen.usableLeft).toFloat() / screen.usableWidth
-            val yFraction = (handleOrigin.y - screen.usableTop).toFloat() / screen.usableHeight
-            scope.launch { locator.settingsRepository.saveHandlePosition(xFraction, yFraction) }
+            persistHandlePosition()
         }
     }
 
@@ -450,8 +640,16 @@ class OverlayManager(
 
     override fun onPanelDrag(dx: Float, dy: Float) {
         val params = panelParams ?: return
-        params.x += dx.toInt()
-        params.y += dy.toInt()
+        // Clamped while dragging, not only at the end: a panel that can be pulled off-screen can also
+        // be lost off-screen, and recovering it means reopening the sidebar and starting over.
+        val next = OverlayGeometry.clampPanel(
+            Point(params.x + dx.toInt(), params.y + dy.toInt()),
+            panelSize,
+            screen,
+        )
+        params.x = next.x
+        params.y = next.y
+        panelOrigin = next
         panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
     }
 
@@ -462,27 +660,35 @@ class OverlayManager(
         params.x = clamped.x
         params.y = clamped.y
         panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
+        applyChromeToPanel()
+        updateHandleCoverage()
+        // End of a drag or of a resize: the rectangle is final, so this is where it gets persisted.
+        persistPanelFrame()
     }
 
-    override fun onPanelResize(widthPx: Int, heightPx: Int) {
+    override fun onPanelResizeStart() {
+        // Deltas arrive absolute from the gesture's ACTION_DOWN, so the origin they are applied to has
+        // to be the one from that same moment - otherwise every move compounds on the previous one.
+        resizeAnchorOrigin = panelOrigin
+    }
+
+    override fun onPanelResize(resize: PanelResize) {
+        if (videoFullscreen) return
         val params = panelParams ?: return
-        val floor = PxSize(
-            OverlayGeometry.dp(OverlayGeometry.MIN_PANEL_WIDTH_DP.toFloat(), density).coerceAtMost(screen.usableWidth),
-            OverlayGeometry.dp(OverlayGeometry.MIN_PANEL_HEIGHT_DP.toFloat(), density).coerceAtMost(screen.usableHeight),
-        )
-        val maxSize = PxSize(
-            (screen.usableWidth - OverlayGeometry.dp(OverlayGeometry.PANEL_MARGIN_DP.toFloat(), density) * 2)
-                .coerceAtLeast(floor.widthPx),
-            (screen.usableHeight - OverlayGeometry.dp(OverlayGeometry.PANEL_MARGIN_DP.toFloat(), density) * 2)
-                .coerceAtLeast(floor.heightPx),
-        )
-        panelSize = PxSize(
-            widthPx.coerceIn(floor.widthPx, maxSize.widthPx),
-            heightPx.coerceIn(floor.heightPx, maxSize.heightPx),
-        )
-        params.width = panelSize.widthPx
-        params.height = panelSize.heightPx
+        // All limits (min/max width and height, and staying inside the safe area) are resolved in
+        // :core against the current screen, so landscape and portrait cannot disagree about them.
+        val placement = OverlayGeometry.resizePanel(resizeAnchorOrigin, resize, screen, density)
+        panelSize = placement.size
+        panelOrigin = placement.origin
+        params.width = placement.size.widthPx
+        params.height = placement.size.heightPx
+        params.x = placement.origin.x
+        params.y = placement.origin.y
         panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
+        // Cheap and worth it: shrinking the panel past a threshold immediately hands the space back to
+        // the page. applyChrome ignores the call unless the layout bucket actually changed, so a resize
+        // that reports a new height on every move does not rebuild the toolbar every move.
+        applyChromeToPanel()
     }
 
     override fun onOpenExternalAuth(url: String) {
@@ -491,7 +697,10 @@ class OverlayManager(
 
     override fun onApplyWindowBrightness(brightness: Float) {
         val params = panelParams ?: return
-        params.screenBrightness = brightness.coerceIn(0.01f, 1f)
+        // A negative value is BRIGHTNESS_OVERRIDE_NONE - "stop overriding, follow the system". The
+        // brightness tool never asks for it; leaving fullscreen does, and clamping that to 0.01 would
+        // dim the panel to black for the rest of the session.
+        params.screenBrightness = if (brightness < 0f) -1f else brightness.coerceIn(0.01f, 1f)
         panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
     }
 
@@ -534,11 +743,28 @@ class OverlayManager(
     }
 
     override fun onEnterFullscreen(view: View) {
-        // HTML5 fullscreen: the panel window grows to the whole usable screen, the video fills it,
-        // and the service (plus its notification) keeps running untouched.
+        // HTML5 fullscreen: the panel window grows to the whole usable screen, the video fills it, and
+        // the service (plus its notification) keeps running untouched. The rectangle the panel had is
+        // remembered here so leaving fullscreen puts it back exactly where it was - the WebView is never
+        // recreated and no state is reset on the way in or out.
+        val params = panelParams
+        if (params == null) {
+            // No panel window to grow (the sidebar is collapsed). Refuse cleanly: keeping the custom
+            // view would make the chrome client refuse every later onShowCustomView, which is how
+            // "video fullscreen stopped working" happens.
+            controller.exitFullscreen()
+            return
+        }
+        if (!videoFullscreen) {
+            fullscreenRestore = PxSize(params.width, params.height) to Point(params.x, params.y)
+            videoFullscreen = true
+        }
         panelView?.enterFullscreen(view)
-        val params = panelParams ?: return
-        fullscreenParams = PxSize(params.width, params.height) to Point(params.x, params.y)
+        applyFullscreenWindow(params)
+    }
+
+    /** Fullscreen bounds against the *current* screen, so a rotation mid-video stays correct. */
+    private fun applyFullscreenWindow(params: WindowManager.LayoutParams) {
         params.width = screen.usableWidth
         params.height = screen.usableHeight
         params.x = screen.usableLeft
@@ -547,22 +773,26 @@ class OverlayManager(
     }
 
     override fun onExitFullscreen() {
+        val restore = fullscreenRestore
+        fullscreenRestore = null
+        videoFullscreen = false
+        // Order matters: the view goes back to normal chrome first (which also releases the brightness
+        // override), then the window is put back to the rectangle it had before the video started.
         panelView?.exitFullscreen()
-        val params = panelParams ?: return
-        val restore = fullscreenParams
-        fullscreenParams = null
-        params.width = restore?.first?.widthPx ?: panelSize.widthPx
-        params.height = restore?.first?.heightPx ?: panelSize.heightPx
-        params.x = restore?.second?.x ?: panelOrigin.x
-        params.y = restore?.second?.y ?: panelOrigin.y
-        panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
+        restore?.let { (size, origin) ->
+            panelSize = size
+            panelOrigin = origin
+        }
+        // The state is restored even when the panel is on its way out, so the next open comes back at
+        // the pre-video size and position instead of a preset.
+        if (!panelOpen) return
+        clampPanelIntoScreen()
+        applyPanelWindow()
     }
 
     override fun onDownloadRequested(request: DownloadRequest) {
         panelView?.onDownloadRequested(request)
     }
-
-    private var fullscreenParams: Pair<PxSize, Point>? = null
 
     private fun titleFor(messageKey: String): Int = when (messageKey) {
         "error_no_network" -> com.gamesidebar.browser.R.string.error_no_network
@@ -589,11 +819,48 @@ class OverlayManager(
         else -> com.gamesidebar.browser.R.string.error_no_network_body
     }
 
-    /** Called by the service on configuration change (rotation, split screen, fold). */
+    /**
+     * Called by the service on configuration change (rotation, split screen, fold).
+     *
+     * Nothing is reset to a default here. Both overlay windows are carried across the change
+     * proportionally and then clamped into the new safe area, which is the only mapping that means
+     * anything once width and height have swapped: a portrait pixel coordinate in landscape is how the
+     * panel ends up mostly off-screen, and re-anchoring on every rotation is how it ends up somewhere
+     * the user did not put it.
+     */
     fun onScreenChanged() {
+        val previous = screen
+        val previousDensity = density
         refreshScreen()
-        applyInitialSettings()
-        if (panelOpen) applyPanelAnchor()
+        if (previous == screen && previousDensity == density) return
+
+        handleSizePx = OverlayGeometry.handleSize(settings.handleSize, density)
+        if (settings.rememberPosition) {
+            handleOrigin = OverlayGeometry.remapHandle(handleOrigin, handleSizePx, previous, screen)
+            updateHandleLayout()
+            persistHandlePosition()
+        } else {
+            placeHandleAtAnchor()
+        }
+
+        if (videoFullscreen) {
+            // A video is playing: keep filling the new usable area rather than shrinking mid-playback.
+            panelParams?.let { applyFullscreenWindow(it) }
+            return
+        }
+
+        panelSize = OverlayGeometry.carryPanelSize(panelSize, previous, screen, density)
+        panelOrigin = OverlayGeometry.remapPanel(panelOrigin, panelSize, previous, screen).origin
+        if (panelOpen) applyPanelWindow()
+        persistPanelFrame()
+    }
+
+    /** Handle position as fractions of the usable screen - the form that survives a rotation. */
+    private fun persistHandlePosition() {
+        if (!settings.rememberPosition) return
+        val xFraction = (handleOrigin.x - screen.usableLeft).toFloat() / screen.usableWidth
+        val yFraction = (handleOrigin.y - screen.usableTop).toFloat() / screen.usableHeight
+        scope.launch { locator.settingsRepository.saveHandlePosition(xFraction, yFraction) }
     }
 
     private companion object {

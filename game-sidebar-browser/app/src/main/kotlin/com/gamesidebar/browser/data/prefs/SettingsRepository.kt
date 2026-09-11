@@ -13,6 +13,7 @@ import com.gamesidebar.core.browser.Shortcut
 import com.gamesidebar.core.browser.ShortcutCatalog
 import com.gamesidebar.core.browser.ShortcutCodec
 import com.gamesidebar.core.browser.ShortcutList
+import com.gamesidebar.core.geometry.PanelFrame
 import com.gamesidebar.core.model.AppSettings
 import com.gamesidebar.core.model.GlowColor
 import com.gamesidebar.core.model.GlowIntensity
@@ -52,6 +53,27 @@ class SettingsRepository(private val context: Context) {
         val x = prefs[Keys.HANDLE_X_FRACTION] ?: return@map null
         val y = prefs[Keys.HANDLE_Y_FRACTION] ?: return@map null
         x to y
+    }
+
+    /**
+     * Last known panel rectangle, as fractions of the usable screen.
+     *
+     * Stored next to the handle position and for the same reason: reopening the sidebar has to bring
+     * back the size and position the user chose instead of the preset default, and fractions are the
+     * only form that still means something after a rotation. Written at gesture end and on collapse -
+     * never per pixel of movement, so dragging a panel does not turn into a stream of disk writes.
+     */
+    val panelFrame: Flow<PanelFrame?> = context.settingsStore.data.map { prefs ->
+        val x = prefs[Keys.PANEL_X_FRACTION] ?: return@map null
+        val y = prefs[Keys.PANEL_Y_FRACTION] ?: return@map null
+        val width = prefs[Keys.PANEL_WIDTH_FRACTION_LIVE] ?: return@map null
+        val height = prefs[Keys.PANEL_HEIGHT_FRACTION_LIVE] ?: return@map null
+        PanelFrame(
+            xFraction = x.coerceIn(0f, 1f),
+            yFraction = y.coerceIn(0f, 1f),
+            widthFraction = width.coerceIn(0f, 1f),
+            heightFraction = height.coerceIn(0f, 1f),
+        )
     }
 
     suspend fun currentSettings(): AppSettings = settings.first()
@@ -111,6 +133,28 @@ class SettingsRepository(private val context: Context) {
         context.settingsStore.edit { prefs ->
             prefs.remove(Keys.HANDLE_X_FRACTION)
             prefs.remove(Keys.HANDLE_Y_FRACTION)
+        }
+    }
+
+    /** Persists the live panel rectangle. Fractions are already clamped by [OverlayGeometry.frameOf]. */
+    suspend fun savePanelFrame(frame: PanelFrame) {
+        context.settingsStore.edit { prefs ->
+            prefs[Keys.PANEL_X_FRACTION] = frame.xFraction.coerceIn(0f, 1f)
+            prefs[Keys.PANEL_Y_FRACTION] = frame.yFraction.coerceIn(0f, 1f)
+            prefs[Keys.PANEL_WIDTH_FRACTION_LIVE] = frame.widthFraction.coerceIn(0f, 1f)
+            prefs[Keys.PANEL_HEIGHT_FRACTION_LIVE] = frame.heightFraction.coerceIn(0f, 1f)
+        }
+    }
+
+    suspend fun currentPanelFrame(): PanelFrame? = panelFrame.first()
+
+    /** "Reset panel position" - the next open falls back to the size preset and anchor. */
+    suspend fun clearPanelFrame() {
+        context.settingsStore.edit { prefs ->
+            prefs.remove(Keys.PANEL_X_FRACTION)
+            prefs.remove(Keys.PANEL_Y_FRACTION)
+            prefs.remove(Keys.PANEL_WIDTH_FRACTION_LIVE)
+            prefs.remove(Keys.PANEL_HEIGHT_FRACTION_LIVE)
         }
     }
 
@@ -189,6 +233,14 @@ class SettingsRepository(private val context: Context) {
         val SHORTCUTS = stringPreferencesKey("shortcuts")
         val HANDLE_X_FRACTION = floatPreferencesKey("handle_x_fraction")
         val HANDLE_Y_FRACTION = floatPreferencesKey("handle_y_fraction")
+
+        // Live panel rectangle. Deliberately separate keys from PANEL_WIDTH_FRACTION /
+        // PANEL_HEIGHT_FRACTION, which belong to the *Custom size preset* the user configures in
+        // settings; sharing them would make every drag overwrite a user preference.
+        val PANEL_X_FRACTION = floatPreferencesKey("panel_live_x_fraction")
+        val PANEL_Y_FRACTION = floatPreferencesKey("panel_live_y_fraction")
+        val PANEL_WIDTH_FRACTION_LIVE = floatPreferencesKey("panel_live_width_fraction")
+        val PANEL_HEIGHT_FRACTION_LIVE = floatPreferencesKey("panel_live_height_fraction")
     }
 }
 

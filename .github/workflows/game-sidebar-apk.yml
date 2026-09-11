@@ -61,7 +61,7 @@ jobs:
           echo "KOTLIN_HOME=$KH" >> "$GITHUB_ENV"
           echo "resolved KOTLIN_HOME=$KH"
 
-      - name: Run 141 core tests and compile the whole app module
+      - name: Run 164 core tests and compile the whole app module
         run: |
           set +e
           bash tools/verify_all.sh 2>&1 | tee verify.log
@@ -102,7 +102,7 @@ jobs:
             echo "sdkmanager not found; relying on the preinstalled SDK"
           fi
 
-      - name: Core unit tests through Gradle (the same 141 cases)
+      - name: Core unit tests through Gradle (the same 164 cases)
         run: ./gradlew :core:test --stacktrace
 
       - name: Build debug APK
@@ -139,5 +139,5 @@ jobs:
           gh release create "$TAG" \
             --target "$GITHUB_SHA" \
             --title "Game SideBar Browser - debug APK (latest build)" \
-            --notes "Auto-published by CI run $GITHUB_RUN_ID. Offline-installable debug build (package com.gamesidebar.browser.debug, so it installs alongside any release build). This is the same code that passed the 141 core tests and the app compile check in the verify job." \
+            --notes "Auto-published by CI run $GITHUB_RUN_ID. Offline-installable debug build (package com.gamesidebar.browser.debug, so it installs alongside any release build). This is the same code that passed the 164 core tests and the app compile check in the verify job." \
             game-sidebar-debug.apk

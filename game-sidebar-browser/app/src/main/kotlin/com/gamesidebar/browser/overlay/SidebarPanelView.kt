@@ -31,6 +31,8 @@ import com.gamesidebar.core.browser.ShortcutList
 import com.gamesidebar.core.browser.Tabs
 import com.gamesidebar.core.browser.UrlResolver
 import com.gamesidebar.core.download.DownloadRequest
+import com.gamesidebar.core.geometry.ChromeLayout
+import com.gamesidebar.core.geometry.PanelResize
 import com.gamesidebar.core.model.AppSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -57,7 +59,10 @@ class SidebarPanelView(
         fun onClose()
         fun onPanelDrag(dx: Float, dy: Float)
         fun onPanelDragEnd()
-        fun onPanelResize(widthPx: Int, heightPx: Int)
+
+        /** First resize event of a gesture: lets the host snapshot the origin the deltas are relative to. */
+        fun onPanelResizeStart()
+        fun onPanelResize(resize: PanelResize)
         fun onOpenExternalAuth(url: String)
         fun onApplyWindowBrightness(brightness: Float)
     }
@@ -67,6 +72,7 @@ class SidebarPanelView(
     private val panelRoot: View
     private val panelHeader: View
     private val panelTitle: TextView
+    private val buttonHome: ImageView
     private val tabStrip: LinearLayout
     private val tabScroll: HorizontalScrollView
     private val urlField: EditText
@@ -100,6 +106,42 @@ class SidebarPanelView(
     private var pendingDownload: DownloadRequest? = null
     private var loading = false
 
+    /** Chrome rows currently shown; re-applied only when the bucket changes, never per pixel. */
+    private var chrome: ChromeLayout? = null
+
+    /** Tab count the current chrome visibility was computed for. */
+    private var chromeTabCount = -1
+    private var tabCount = 0
+
+    /** Last reported bookmark state, so the overflow menu can show it while the button is hidden. */
+    private var bookmarked = false
+
+    /** True between `onShowCustomView` and `onHideCustomView`: the video owns the whole panel. */
+    private var videoFullscreen = false
+
+    // Live resize gesture. Deltas are absolute from ACTION_DOWN, so the start values are captured
+    // once and every MOVE is a pure function of them - no accumulating drift on a fast drag.
+    private var resizing = false
+    private var resizeEdgeX = 0
+    private var resizeEdgeY = 0
+    private var resizeStartRawX = 0f
+    private var resizeStartRawY = 0f
+    private var resizeStartWidth = 0
+    private var resizeStartHeight = 0
+
+    /**
+     * Width of the border ring that resizes the panel, taken from the layout's own padding.
+     *
+     * Every row of the panel is inset by `panel_padding`, so this ring contains no children at all:
+     * intercepting a touch there cannot take a gesture away from the page, the tab strip or the
+     * toolbar. Reading it from the dimen (rather than hardcoding 10dp) keeps the touch target and the
+     * layout from drifting apart.
+     */
+    private val resizeBandPx: Int = resources.getDimensionPixelSize(R.dimen.panel_padding)
+
+    /** The visible corner grip stays the generous resize target it always was. */
+    private val resizeGripPx: Int = resources.getDimensionPixelSize(R.dimen.panel_resize_grip)
+
     private val swipeDetector = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {
@@ -118,6 +160,7 @@ class SidebarPanelView(
         panelRoot = requireViewById(R.id.panelRoot)
         panelHeader = requireViewById(R.id.panelHeader)
         panelTitle = requireViewById(R.id.panelTitle)
+        buttonHome = requireViewById(R.id.buttonHome)
         tabStrip = requireViewById(R.id.tabStrip)
         tabScroll = requireViewById(R.id.tabScroll)
         urlField = requireViewById(R.id.urlField)
@@ -145,7 +188,7 @@ class SidebarPanelView(
 
         wireHeader()
         wireToolbar()
-        wireResizeGrip()
+        wireResize()
         wireTools()
 
         controller.attachContainer(webContainer)
@@ -186,6 +229,11 @@ class SidebarPanelView(
     }
 
     fun teardown() {
+        // A video still in fullscreen has to be released before the panel view goes away: the custom
+        // view is parented inside this layout, and leaving it there means the chrome client keeps
+        // holding a stale view and refuses the next onShowCustomView for the rest of the session.
+        // The WebView itself is untouched - it belongs to the controller and survives the teardown.
+        if (videoFullscreen) controller.exitFullscreen()
         controller.detachContainer()
     }
 
@@ -245,9 +293,14 @@ class SidebarPanelView(
             false
         }
 
-        // Tapping the product mark goes home, which is where a home button would sit on a full
-        // browser toolbar; the panel keeps the more-menu entry too.
-        panelTitle.setOnClickListener { controller.home() }
+        // The product mark is the home button, which is where a home button sits on a full browser
+        // toolbar; the more-menu keeps a second entry so nothing depends on hitting it.
+        //
+        // The title text is deliberately NOT clickable. A clickable child swallows ACTION_DOWN, so the
+        // header's drag listener only ever saw the small gaps between buttons - the widest part of the
+        // header could not be used to move the panel. Leaving the title inert makes it part of the drag
+        // surface, which is the gesture the header is for.
+        buttonHome.setOnClickListener { controller.home() }
         buttonMinimize.setOnClickListener { host.onMinimize() }
         buttonClose.setOnClickListener { host.onClose() }
     }
@@ -284,28 +337,42 @@ class SidebarPanelView(
         }
     }
 
+    /**
+     * The overflow menu.
+     *
+     * It also carries Forward and Bookmark, which the compact toolbar hides to keep the address bar
+     * wide enough to read on a short landscape panel. Hiding a button must not hide a feature, so both
+     * stay reachable here whatever the chrome layout is.
+     */
     private fun showMoreMenu(anchor: View) {
         val menu = PopupMenu(context, anchor, Gravity.END)
         val items = menu.menu
         items.add(MENU_GROUP, MENU_HOME, 0, R.string.action_home).setIcon(R.drawable.ic_home)
         items.add(MENU_GROUP, MENU_NEW_TAB, 1, R.string.panel_new_tab).setIcon(R.drawable.ic_add)
         items.add(MENU_GROUP, MENU_CLOSE_TAB, 2, R.string.panel_close_tab).setIcon(R.drawable.ic_close)
-        items.add(MENU_GROUP, MENU_DESKTOP, 3, R.string.action_desktop_mode)
+        items.add(MENU_GROUP, MENU_FORWARD, 3, R.string.action_forward)
+            .setIcon(R.drawable.ic_forward)
+            .setEnabled(controller.canGoForward())
+        items.add(MENU_GROUP, MENU_BOOKMARK, 4, R.string.action_bookmark)
+            .setIcon(if (bookmarked) R.drawable.ic_bookmark_filled else R.drawable.ic_bookmark)
+        items.add(MENU_GROUP, MENU_DESKTOP, 5, R.string.action_desktop_mode)
             .setIcon(R.drawable.ic_desktop)
             .setCheckable(true)
             .setChecked(controller.tabs.active?.isDesktopMode == true)
-        items.add(MENU_GROUP, MENU_INCOGNITO, 4, R.string.settings_incognito)
+        items.add(MENU_GROUP, MENU_INCOGNITO, 6, R.string.settings_incognito)
             .setIcon(R.drawable.ic_incognito)
             .setCheckable(true)
             .setChecked(settings.incognito)
-        items.add(MENU_GROUP, MENU_EXTERNAL, 5, R.string.action_open_external).setIcon(R.drawable.ic_external)
-        items.add(MENU_GROUP, MENU_SHARE, 6, R.string.action_share).setIcon(R.drawable.ic_external)
-        items.add(MENU_GROUP, MENU_CLEAR_CACHE, 7, R.string.settings_clear_cache).setIcon(R.drawable.ic_delete)
+        items.add(MENU_GROUP, MENU_EXTERNAL, 7, R.string.action_open_external).setIcon(R.drawable.ic_external)
+        items.add(MENU_GROUP, MENU_SHARE, 8, R.string.action_share).setIcon(R.drawable.ic_external)
+        items.add(MENU_GROUP, MENU_CLEAR_CACHE, 9, R.string.settings_clear_cache).setIcon(R.drawable.ic_delete)
         menu.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 MENU_HOME -> controller.home()
                 MENU_NEW_TAB -> controller.newTab()
                 MENU_CLOSE_TAB -> controller.tabs.activeId?.let { controller.closeTab(it) }
+                MENU_FORWARD -> controller.forward()
+                MENU_BOOKMARK -> controller.toggleBookmark()
                 MENU_DESKTOP -> controller.toggleDesktopMode()
                 MENU_INCOGNITO -> uiScope.launch {
                     settingsRepository.update { it.copy(incognito = !it.incognito) }
@@ -505,7 +572,10 @@ class SidebarPanelView(
 
     private fun wireTools() {
         buttonTools.setOnClickListener { toggleTools() }
-        buttonExitFullscreen.setOnClickListener { exitFullscreen() }
+        // Through the controller, not straight at this view: releasing the page's custom view is what
+        // tells YouTube its fullscreen ended and restores the window geometry. Calling exitFullscreen()
+        // here alone left the overlay window full-screen with the normal panel drawn inside it.
+        buttonExitFullscreen.setOnClickListener { controller.exitFullscreen() }
     }
 
     private fun toggleTools() {
@@ -587,44 +657,152 @@ class SidebarPanelView(
 
     // ---------------------------------------------------------------- resize
 
+    /**
+     * Four-side and corner resize, driven by touch interception instead of eight extra views.
+     *
+     * The grip keeps its old job - the visible affordance in the bottom-right corner, hidden in Gaming
+     * Mode - but it no longer owns a touch listener, because a listener there and interception here
+     * would both claim the same corner and fight over which delta wins.
+     */
+    private fun wireResize() {
+        resizeGrip.setOnTouchListener(null)
+        resizeGrip.isClickable = false
+    }
+
+    /**
+     * Which edges a touch grabs: -1 = left/top, +1 = right/bottom, 0 = nothing.
+     *
+     * Two zones, and neither contains an interactive child:
+     *  - the `panel_padding` ring around the panel, which gives four edges and four 10dp corners;
+     *  - the visible grip's own rect, which stays the comfortable bottom-right corner target.
+     *
+     * Resizing is switched off in Gaming Mode (the existing "no resize grip" rule) and while a video
+     * owns the panel, so a fullscreen gesture is never mistaken for a resize.
+     */
+    private fun resizeEdgesAt(x: Float, y: Float): Pair<Int, Int> {
+        if (videoFullscreen || settings.gamingMode || width <= 0 || height <= 0) return 0 to 0
+        val band = resizeBandPx.toFloat()
+        val gripLeft = width - resizeGripPx - band
+        val gripTop = height - resizeGripPx - band
+        val inGrip = x >= gripLeft && y >= gripTop
+        val edgeX = when {
+            x <= band -> -1
+            x >= width - band || inGrip -> 1
+            else -> 0
+        }
+        val edgeY = when {
+            y <= band -> -1
+            y >= height - band || inGrip -> 1
+            else -> 0
+        }
+        return edgeX to edgeY
+    }
+
+    /**
+     * Decided once per gesture, on ACTION_DOWN.
+     *
+     * Returning false is what keeps WebView scrolling intact: from then on the panel does not look at
+     * another event of that gesture, so a vertical swipe inside a page belongs to the page alone and
+     * the sidebar does not move. Returning true - possible only inside the border ring - claims the
+     * gesture for resizing. Nothing is disabled globally and no transparent layer is added.
+     */
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean = when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> {
+            val (edgeX, edgeY) = resizeEdgesAt(event.x, event.y)
+            edgeX != 0 || edgeY != 0
+        }
+
+        MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> resizing
+        else -> false
+    }
+
     @SuppressLint("ClickableViewAccessibility")
-    private fun wireResizeGrip() {
-        var startX = 0f
-        var startY = 0f
-        var startWidth = 0
-        var startHeight = 0
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val (edgeX, edgeY) = resizeEdgesAt(event.x, event.y)
+                if (edgeX == 0 && edgeY == 0) return super.onTouchEvent(event)
+                beginResize(edgeX, edgeY, event)
+                return true
+            }
 
-        resizeGrip.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = event.rawX
-                    startY = event.rawY
-                    startWidth = width
-                    startHeight = height
-                    true
-                }
+            MotionEvent.ACTION_MOVE -> if (resizing) {
+                publishResize(event)
+                return true
+            }
 
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = (event.rawX - startX).toInt()
-                    val dy = (event.rawY - startY).toInt()
-                    host.onPanelResize(startWidth + dx, startHeight + dy)
-                    true
-                }
-
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    host.onPanelDragEnd()
-                    true
-                }
-
-                else -> false
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (resizing) {
+                endResize()
+                return true
             }
         }
+        return super.onTouchEvent(event)
+    }
+
+    private fun beginResize(edgeX: Int, edgeY: Int, event: MotionEvent) {
+        resizing = true
+        resizeEdgeX = edgeX
+        resizeEdgeY = edgeY
+        resizeStartRawX = event.rawX
+        resizeStartRawY = event.rawY
+        resizeStartWidth = width
+        resizeStartHeight = height
+        host.onPanelResizeStart()
+    }
+
+    /** Deltas stay absolute from ACTION_DOWN, so no MOVE can accumulate into a drifting panel. */
+    private fun publishResize(event: MotionEvent) {
+        val dx = (event.rawX - resizeStartRawX).toInt()
+        val dy = (event.rawY - resizeStartRawY).toInt()
+        host.onPanelResize(
+            PanelResize(
+                widthPx = resizeStartWidth + resizeEdgeX * dx,
+                heightPx = resizeStartHeight + resizeEdgeY * dy,
+                originDx = if (resizeEdgeX < 0) dx else 0,
+                originDy = if (resizeEdgeY < 0) dy else 0,
+                movesLeftEdge = resizeEdgeX < 0,
+                movesTopEdge = resizeEdgeY < 0,
+            ),
+        )
+    }
+
+    private fun endResize() {
+        resizing = false
+        resizeEdgeX = 0
+        resizeEdgeY = 0
+        // The same end-of-gesture hook the drag uses: clamp once more and persist the new rectangle.
+        host.onPanelDragEnd()
+    }
+
+    /**
+     * Applies the chrome layout that fits the current panel height.
+     *
+     * Rows are hidden, never removed, and every control that disappears from the toolbar keeps an
+     * entry in the more-menu, so a compact landscape panel loses pixels and nothing else. The early
+     * return matters for smoothness: a resize crosses a bucket boundary at most a couple of times,
+     * while it reports a new height on every move event.
+     */
+    fun applyChrome(layout: ChromeLayout) {
+        // A second tab is a hard reason to keep the tab strip: hiding it would leave no way to switch
+        // tabs at all, and losing a feature is worse than losing 38dp of page. With a single tab - the
+        // normal case while gaming - the shortest chrome applies as computed.
+        val showTabStrip = layout.showTabStrip || tabCount > 1
+        if (chrome == layout && chromeTabCount == tabCount) return
+        chrome = layout
+        chromeTabCount = tabCount
+        tabScroll.visibility = if (showTabStrip) View.VISIBLE else View.GONE
+        shortcutScroll.visibility = if (layout.showShortcutRow) View.VISIBLE else View.GONE
+        buttonForward.visibility = if (layout.showSecondaryToolbarButtons) View.VISIBLE else View.GONE
+        buttonBookmark.visibility = if (layout.showSecondaryToolbarButtons) View.VISIBLE else View.GONE
     }
 
     // ---------------------------------------------------------------- controller callbacks
 
     fun onTabsChanged(tabs: Tabs) {
+        tabCount = tabs.count
         renderTabs(tabs)
+        // Going from one tab to two can bring the tab strip back even in the shortest chrome layout.
+        chrome?.let { applyChrome(it) }
     }
 
     fun onProgress(progress: Int) {
@@ -661,6 +839,9 @@ class SidebarPanelView(
     }
 
     fun onBookmarkChanged(isBookmarked: Boolean) {
+        // Kept for the overflow menu, which shows the bookmark state while the compact toolbar hides
+        // the button itself.
+        bookmarked = isBookmarked
         buttonBookmark.setImageResource(if (isBookmarked) R.drawable.ic_bookmark_filled else R.drawable.ic_bookmark)
         buttonBookmark.setColorFilter(
             if (isBookmarked) Color.parseColor("#4C8DFF") else Color.parseColor("#B3FFFFFF"),
@@ -690,7 +871,17 @@ class SidebarPanelView(
 
     // ---------------------------------------------------------------- fullscreen
 
+    /**
+     * VIDEO_FULLSCREEN: the page's own video surface covers the panel, so the header, tab strip,
+     * address bar and shortcuts are all behind it and the video gets the whole window.
+     *
+     * The WebView stays exactly where it is - only the custom view the page handed us is re-parented.
+     * Resize and drag are suspended for the duration so a video gesture cannot move the sidebar.
+     */
     fun enterFullscreen(view: View) {
+        // A resize in flight has to land before the video takes over, or its rectangle would never be
+        // clamped or persisted and the panel would reopen at a half-finished size.
+        if (resizing) endResize()
         if (view.parent != null) (view.parent as? ViewGroup)?.removeView(view)
         fullscreenContainer.addView(
             view,
@@ -698,15 +889,25 @@ class SidebarPanelView(
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
         )
         fullscreenContainer.visibility = View.VISIBLE
+        videoFullscreen = true
+        resizing = false
         host.onApplyWindowBrightness(1f)
     }
 
+    /**
+     * Back to NORMAL: the video surface goes home, the chrome is revealed again and the panel keeps
+     * the size and position it had before the video started (restored by the overlay manager).
+     */
     fun exitFullscreen() {
         val child = fullscreenContainer.getChildAt(0)
         if (child != null && child !== buttonExitFullscreen) {
             fullscreenContainer.removeView(child)
         }
         fullscreenContainer.visibility = View.GONE
+        videoFullscreen = false
+        // Brightness goes back to "no override" (-1) so the panel does not keep the window pinned at
+        // full brightness after the video ends.
+        host.onApplyWindowBrightness(-1f)
     }
 
     // ---------------------------------------------------------------- errors
@@ -759,6 +960,8 @@ class SidebarPanelView(
         const val MENU_EXTERNAL = 6
         const val MENU_SHARE = 7
         const val MENU_CLEAR_CACHE = 8
+        const val MENU_FORWARD = 9
+        const val MENU_BOOKMARK = 10
         const val MENU_SHORTCUT_EDIT = 20
         const val MENU_SHORTCUT_DELETE = 21
     }

@@ -34,11 +34,17 @@
                 android:src="@drawable/ic_drag"
                 android:tint="@color/text_muted" />
 
+            <!-- Product mark: the home action. It used to sit on the title text next to it, which made
+                 the title clickable and therefore dead to the header's drag listener - the widest part
+                 of the header could not be used to move the panel. -->
             <ImageView
-                android:layout_width="@dimen/icon_size"
-                android:layout_height="@dimen/icon_size"
+                android:id="@+id/buttonHome"
+                android:layout_width="@dimen/icon_button"
+                android:layout_height="@dimen/icon_button"
                 android:layout_marginStart="@dimen/gap_small"
-                android:contentDescription="@null"
+                android:background="@drawable/bg_icon_button"
+                android:contentDescription="@string/action_home"
+                android:padding="10dp"
                 android:src="@drawable/ic_browser"
                 android:tint="@color/accent_blue" />
 

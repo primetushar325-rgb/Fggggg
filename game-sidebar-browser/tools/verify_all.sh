@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One entry point for everything that can be verified without an Android SDK:
-#   1. the pure-JVM core engine and its 141 tests
+#   1. the pure-JVM core engine and its 164 tests
 #   2. the whole Android app module compiled against the API mirror in tools/android-stubs
 #
 # The shipping build is still ./gradlew assembleDebug (needs the Android SDK + network for AGP).
