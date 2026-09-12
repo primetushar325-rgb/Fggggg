@@ -188,8 +188,17 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     override fun onLoadErrorCleared() = _state.update { it.copy(errorMessageKey = null) }
 
-    override fun onExternalAuthRequired(url: String) = _state.update {
-        it.copy(errorMessageKey = "error_login_blocked", errorUrl = url)
+    override fun onExternalAuthRequired(url: String) {
+        // CRITICAL LOGIN FIX: Do NOT show "Secure login required" blocking overlay for floating browser.
+        // Directly open secure Custom Tab authentication without blocking warning.
+        // Normal <input email/password><form> stays in WebView; only OAuth hosts use Custom Tab.
+        _state.update { it.copy(errorMessageKey = null, errorUrl = "") }
+        try {
+            com.gamesidebar.browser.util.ExternalBrowser.open(getApplication(), url)
+        } catch (_: Exception) {
+            // Fallback: if Custom Tab fails, show non-blocking error
+            _state.update { it.copy(errorMessageKey = "error_login_blocked", errorUrl = url) }
+        }
     }
 
     override fun onEnterFullscreen(view: View) = _state.update { it.copy(fullscreenView = view) }

@@ -293,6 +293,9 @@ class OverlayManager(
      */
     private fun applyChromeToPanel() {
         if (videoFullscreen) return
+        // VIDEO_FOCUS_MODE: keep video using almost entire sidebar (500x700 -> 350x500 -> 280x400 must keep playing)
+        // Do not re-apply chrome that would unhide header/tabs/URL/shortcuts and shrink WebView
+        if (panelView?.isVideoFocusMode() == true) return
         val layout: ChromeLayout = OverlayGeometry.chromeLayout(panelSize.heightPx, density)
         panelView?.applyChrome(layout)
     }
@@ -767,11 +770,14 @@ class OverlayManager(
     }
 
     override fun onExternalAuthRequired(url: String) {
-        panelView?.showError(
-            com.gamesidebar.browser.R.string.error_login_blocked,
-            com.gamesidebar.browser.R.string.error_login_body,
-            com.gamesidebar.browser.R.string.error_action_open_login,
-        ) { onOpenExternalAuth(url) }
+        // CRITICAL LOGIN FIX: Do NOT block YouTube/normal login with "Secure login required" overlay.
+        // The previous blanket block showed error_login_blocked whenever the browser was floating.
+        // Now: directly open secure Custom Tab without showing the blocking warning.
+        // Normal <input email/password><form> stays in WebView; only OAuth hosts trigger this
+        // via requiresExternalAuth and we open them in Custom Tab then return to existing sidebar
+        // preserving position/size/tab/WebView, never capturing passwords.
+        panelView?.hideError()
+        onOpenExternalAuth(url)
     }
 
     override fun onEnterFullscreen(view: View) {

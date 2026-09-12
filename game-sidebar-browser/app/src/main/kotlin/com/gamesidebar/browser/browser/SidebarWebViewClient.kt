@@ -39,10 +39,16 @@ class SidebarWebViewClient(
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         val url = request.url?.toString() ?: return false
 
-        // OAuth inside a third-party WebView is refused by Google with disallowed_useragent. The
-        // honest path is a Custom Tab; nothing is spoofed and no credential is stored here.
+        // CRITICAL LOGIN FIX: Do NOT block YouTube "Sign in" with "Secure login required" overlay.
+        // OAuth hosts (accounts.google.com etc.) must use secure Custom Tab, but WITHOUT showing the
+        // blanket "floating browser" warning. Directly open Custom Tab and return to existing sidebar.
+        // Normal <form> login stays in WebView; only OAuth uses Custom Tab, never captures passwords.
         if (UrlSafety.requiresExternalAuth(url)) {
-            callbacks.onExternalAuthRequired(url)
+            try {
+                com.gamesidebar.browser.util.ExternalBrowser.open(context, url)
+            } catch (_: Exception) {
+                callbacks.onExternalAuthRequired(url)
+            }
             return true
         }
 

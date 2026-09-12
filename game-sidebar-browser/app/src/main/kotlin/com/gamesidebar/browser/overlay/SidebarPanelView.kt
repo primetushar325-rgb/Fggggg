@@ -796,6 +796,10 @@ class SidebarPanelView(
      * while it reports a new height on every move event.
      */
     fun applyChrome(layout: ChromeLayout) {
+        // CRITICAL VIDEO FIX: When VIDEO_FOCUS_MODE is active, do NOT re-apply chrome that would unhide
+        // header/tabs/URL/shortcuts and shrink WebView — video must continue when sidebar gets smaller
+        if (videoFocusMode) return
+        if (videoFullscreen) return
         // A second tab is a hard reason to keep the tab strip: hiding it would leave no way to switch
         // tabs at all, and losing a feature is worse than losing 38dp of page. With a single tab - the
         // normal case while gaming - the shortest chrome applies as computed.
@@ -940,25 +944,30 @@ class SidebarPanelView(
     fun enterVideoFocusMode() {
         if (videoFocusMode) return
         videoFocusMode = true
-        // HIDE completely: tab row, URL/search bar, navigation toolbar, shortcut rows, unnecessary controls
+        // CRITICAL VIDEO FIX: Hide everything that consumes layout so WebView keeps playing when sidebar becomes smaller (350x500 -> 280x400)
+        // Outer container SidebarRoot (FrameLayout) will be resized via WindowManager.updateViewLayout; WebView stays SAME INSTANCE with MATCH_PARENT
+        // Resizing must ONLY update outer dimensions, never WebView lifecycle.
+        panelHeader.visibility = View.GONE
         tabScroll.visibility = View.GONE
         findViewById<View>(R.id.toolbar)?.visibility = View.GONE
         shortcutScroll.visibility = View.GONE
         pageProgress.visibility = View.GONE
-        // Keep ONLY tiny 32dp border bar — WebView occupies almost entire sidebar (MATCH_PARENT)
+        // Keep ONLY tiny 32dp border bar overlayed — WebView occupies almost entire sidebar (85-95%)
         compactVideoControls.visibility = View.VISIBLE
-        webContainer.layoutParams = (webContainer.layoutParams as ViewGroup.LayoutParams).apply {
+        // Ensure WebView itself is untouched — same instance, MATCH_PARENT, no removeView/addView, no loadUrl/reload
+        (webContainer.layoutParams as ViewGroup.LayoutParams).apply {
             width = ViewGroup.LayoutParams.MATCH_PARENT
             height = ViewGroup.LayoutParams.MATCH_PARENT
         }
-        // Do NOT recreate WebView — same instance, just visibility change
+        // Do NOT recreate WebView — same instance, just visibility change; requestLayout via invalidate (stub-compatible)
         invalidate()
     }
 
     fun exitVideoFocusMode() {
         if (!videoFocusMode) return
         videoFocusMode = false
-        // Restore NORMAL_BROWSER_MODE: tabs, address, navigation, shortcuts — without recreating WebView
+        // Restore NORMAL_BROWSER_MODE: header, tabs, address, navigation, shortcuts — without recreating WebView
+        panelHeader.visibility = View.VISIBLE
         // Let applyChrome decide visibility, but ensure not forced GONE
         tabScroll.visibility = View.VISIBLE
         findViewById<View>(R.id.toolbar)?.visibility = View.VISIBLE
@@ -994,10 +1003,11 @@ class SidebarPanelView(
             controller.reload()
         }
         errorView.visibility = View.VISIBLE
-        if (isExternalAuthUrl(url)) {
-            errorAction.setText(R.string.error_action_open_login)
-            errorAction.setOnClickListener { host.onOpenExternalAuth(url) }
-        }
+        // CRITICAL LOGIN FIX: Do NOT show "Secure Login" blocking overlay for external auth URLs.
+        // Previous code replaced retry with "Secure Login" when isExternalAuthUrl(url) true, which
+        // blocked YouTube "Sign in" with Game SideBar warning. Now we keep normal retry; the
+        // Custom Tab path is handled directly in shouldOverrideUrlLoading / onExternalAuthRequired
+        // without showing blocking warning, preserving normal form login in WebView.
     }
 
     fun hideError() {
