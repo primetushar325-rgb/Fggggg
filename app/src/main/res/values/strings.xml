@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Game Sidebar</string>
+    <string name="open_sidebar">Open Sidebar</string>
+    <string name="close_sidebar">Close</string>
+    <string name="collapse">Collapse</string>
+    <string name="search_hint">Search or enter URL</string>
+    <string name="refresh">Refresh</string>
+    <string name="menu">Menu</string>
+    <string name="back">Back</string>
+    <string name="auto_hide_controls">Auto-hide controls during video</string>
+    <string name="secure_login">Secure Login</string>
+    <string name="embedded_login_blocked">এই সাইটটি নিরাপত্তার কারণে embedded browser login অনুমতি দিচ্ছে না।</string>
+    <string name="embedded_login_desc">Secure system browser এ লগইন করুন, তারপর sidebar এ ফিরে আসুন।</string>
+    <string name="handle_content_desc">Tap to reopen sidebar</string>
+    <string name="video_mode">Video Mode</string>
+    <string name="grant_overlay_permission">Please grant overlay permission to show floating sidebar over games.</string>
+    <string name="notification_title">Game Sidebar is running</string>
+    <string name="notification_text">Tap to manage sidebar</string>
+</resources>

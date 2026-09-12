@@ -1,0 +1,12 @@
+<resources>
+    <dimen name="sidebar_min_width">280dp</dimen>
+    <dimen name="sidebar_min_height">320dp</dimen>
+    <dimen name="sidebar_default_width">360dp</dimen>
+    <dimen name="sidebar_default_height">520dp</dimen>
+    <dimen name="toolbar_height">40dp</dimen> <!-- FIX: reduced from excessive height, was 56-64dp -->
+    <dimen name="toolbar_height_video">0dp</dimen>
+    <dimen name="handle_size">48dp</dimen>
+    <dimen name="resize_handle_size">16dp</dimen>
+    <dimen name="corner_radius">12dp</dimen>
+    <dimen name="address_bar_height">36dp</dimen>
+</resources>

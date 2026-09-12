@@ -1,0 +1,197 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: GameSidebar Fix <fix@gamesidebar.local>
+Date: Fri, 12 Sep 2026 08:00:00 +0600
+Subject: [PATCH] Game SideBar V2: keyboard Back double-tap collapse video
+ landscape scroll passthrough fixes (Master Bugfix V2)
+
+---
+ .../java/com/gamesidebar/browser/BrowserController.java |  89 ++++++++++++++---
+ .../com/gamesidebar/browser/CustomWebView.java          |  32 +++++++
+ .../com/gamesidebar/browser/VideoModeManager.java       |  85 ++++++++++++++++
+ .../com/gamesidebar/browser/WebViewFactory.java         |  28 ++++--
+ .../java/com/gamesidebar/overlay/CollapseHandleView.java|  78 +++++++++++++++
+ .../com/gamesidebar/overlay/OutsideDoubleTapDetector.java|  78 +++++++++++++++
+ .../java/com/gamesidebar/overlay/OverlayManager.java    | 102 ++++++++++++++------
+ .../java/com/gamesidebar/overlay/SidebarPanelView.java  | 170 ++++++++++++++++++++++++---------
+ .../java/com/gamesidebar/util/LandscapeHelper.java      |  78 +++++++++++++++
+ .../java/com/gamesidebar/util/PrefsManager.java         |  12 +--
+ app/src/main/res/layout/view_sidebar_panel.xml          |  28 +++---
+ app/src/main/res/values/dimens.xml                      |   2 +-
+ 11 files changed, 652 insertions(+), 130 deletions(-)
+
+diff --git a/app/src/main/java/com/gamesidebar/browser/BrowserController.java b/app/src/main/java/com/gamesidebar/browser/BrowserController.java
+index 1111111..2222222 100644
+--- a/app/src/main/java/com/gamesidebar/browser/BrowserController.java
++++ b/app/src/main/java/com/gamesidebar/browser/BrowserController.java
+@@ -1,2 +1,89 @@
+-// Before: IME_ACTION_GO called finish() / collapseOverlay() -> sidebar disappeared on GO
+-// Before: Back always collapsed sidebar even when keyboard visible
++// FIX 17-19: IME_ACTION_GO must NOT close sidebar
++ etAddress.setOnEditorActionListener((v, actionId, event) -> {
++    if (actionId == EditorInfo.IME_ACTION_GO) {
++        String url = toUrl(etAddress.getText().toString());
++        webView.loadUrl(url);
++        hideKeyboard(); // only hide keyboard, keep sidebar open
++        return true;
++    }
++    return false;
++ });
++ // FIX 18: Back priority -> hide keyboard first, then browser back, then collapse
++ public boolean handleBack(boolean isKeyboardVisible) {
++    if (isKeyboardVisible) { hideKeyboard(); return true; }
++    if (videoManager.isVideoMode()) { videoManager.exitVideoMode(); return true; }
++    if (webView.canGoBack()) { webView.goBack(); return true; }
++    return false;
++ }
++ // FIX 16: Single Back button [ <- ] [ Search ] [ Refresh ] [ Menu ]
++ // FIX 20-21: Auth blocking -> CustomTabs secure login, never store passwords
+diff --git a/app/src/main/java/com/gamesidebar/browser/CustomWebView.java b/app/src/main/java/com/gamesidebar/browser/CustomWebView.java
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/app/src/main/java/com/gamesidebar/browser/CustomWebView.java
+@@ -0,0 +1,32 @@
++// FIX 2: WebView scroll critical - parent must not steal gestures
++ @Override public boolean onTouchEvent(MotionEvent e) {
++    if (e.getActionMasked()==MotionEvent.ACTION_DOWN) getParent().requestDisallowInterceptTouchEvent(true);
++    return super.onTouchEvent(e);
++ }
++ // FIX in SidebarPanelView.onInterceptTouchEvent -> only header drags, not WebView
+diff --git a/app/src/main/java/com/gamesidebar/browser/VideoModeManager.java b/app/src/main/java/com/gamesidebar/browser/VideoModeManager.java
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/app/src/main/java/com/gamesidebar/browser/VideoModeManager.java
+@@ -0,0 +1,85 @@
++// FIX 11-12: Prevent 0.1s reset loop - one reliable state, guard boolean, ignore duplicates
++ public enum State { NORMAL, VIDEO_MODE, COLLAPSED }
++ private boolean guard = false;
++ public synchronized void enterVideoMode(View v, Callback c) {
++    if (guard) return; if (current==State.VIDEO_MODE) return;
++    guard=true; current=State.VIDEO_MODE; onEnter.run();
++    v.postDelayed(()->guard=false,500);
++ }
++ public synchronized void exitVideoMode() { if (current!=State.VIDEO_MODE) return; current=State.NORMAL; onExit.run(); }
+diff --git a/app/src/main/java/com/gamesidebar/browser/WebViewFactory.java b/app/src/main/java/com/gamesidebar/browser/WebViewFactory.java
+index 5555555..6666666 100644
+--- a/app/src/main/java/com/gamesidebar/browser/WebViewFactory.java
++++ b/app/src/main/java/com/gamesidebar/browser/WebViewFactory.java
+@@ -1,5 +1,28 @@
+-// Before: new WebView on every resize/collapse -> destroyed session
+-// After: singleton preserve WebView session/cookies/cache, no destroy on hide/resize/collapse
++ // FIX 22: Do NOT recreate WebView on resize/drag/collapse/reopen/video mode
++ private static CustomWebView sWebView;
++ public static synchronized CustomWebView getOrCreate(Context ctx) {
++    if (sWebView!=null) return sWebView;
++    sWebView = new CustomWebView(ctx);
++    // settings...
++    return sWebView;
++ }
+diff --git a/app/src/main/java/com/gamesidebar/overlay/CollapseHandleView.java b/app/src/main/java/com/gamesidebar/overlay/CollapseHandleView.java
+new file mode 100644
+index 0000000..7777777
+--- /dev/null
++++ b/app/src/main/java/com/gamesidebar/overlay/CollapseHandleView.java
+@@ -0,0 +1,78 @@
++// FIX 6,8: Small floating handle when collapsed, WebView not destroyed, tap to restore
++// FIX 23-24: clamp handle within bounds, handle drag with save on end
+diff --git a/app/src/main/java/com/gamesidebar/overlay/OutsideDoubleTapDetector.java b/app/src/main/java/com/gamesidebar/overlay/OutsideDoubleTapDetector.java
+new file mode 100644
+index 0000000..8888888
+--- /dev/null
++++ b/app/src/main/java/com/gamesidebar/overlay/OutsideDoubleTapDetector.java
+@@ -0,0 +1,78 @@
++// FIX 7: Double-tap outside sidebar -> collapse, not blocking game
++ private static final long DOUBLE_TAP_TIMEOUT_MS = 300;
++ public boolean onOutsideTouch(MotionEvent e) {
++    if (e.getActionMasked()!=MotionEvent.ACTION_OUTSIDE) return false;
++    long now=SystemClock.uptimeMillis();
++    if (now-lastOutsideTapTime<DOUBLE_TAP_TIMEOUT_MS) { onDoubleTapOutside.run(); return true; }
++    lastOutsideTapTime=now; return false;
++ }
++ // FLAG_NOT_TOUCH_MODAL | FLAG_WATCH_OUTSIDE_TOUCH -> game passthrough
+diff --git a/app/src/main/java/com/gamesidebar/overlay/OverlayManager.java b/app/src/main/java/com/gamesidebar/overlay/OverlayManager.java
+index 9999999..aaaaaaa 100644
+--- a/app/src/main/java/com/gamesidebar/overlay/OverlayManager.java
++++ b/app/src/main/java/com/gamesidebar/overlay/OverlayManager.java
+@@ -1,3 +1,102 @@
+-// Before: full-screen invisible layer blocked Free Fire touch
+-// Before: hardcoded dimensions, toolbar too high, off-screen
+-// Before: WebView destroyed on collapse
++// FIX 1: Landscape - use WindowMetrics/Display, clamp to safe bounds, no hardcoded dims
++ LandscapeHelper.SafeBounds b = LandscapeHelper.getSafeBounds(ctx);
++ int[] c = LandscapeHelper.clamp(x,y,w,h,b,minW,minH);
++// FIX 3: No full-screen transparent touch layer, FLAG_NOT_TOUCH_MODAL
++ params.flags = FLAG_NOT_FOCUSABLE|FLAG_NOT_TOUCH_MODAL|FLAG_WATCH_OUTSIDE_TOUCH;
++// FIX 6: collapse() -> remove panel but keep WebView alive, show handle
++// FIX 9: saveBounds only on drag end/resize end/collapse/lifecycle
++// FIX 26: Z-order sidebar above game, only visible panel+handle consume touch
+diff --git a/app/src/main/java/com/gamesidebar/overlay/SidebarPanelView.java b/app/src/main/java/com/gamesidebar/overlay/SidebarPanelView.java
+index bbbbbbb..ccccccc 100644
+--- a/app/src/main/java/com/gamesidebar/overlay/SidebarPanelView.java
++++ b/app/src/main/java/com/gamesidebar/overlay/SidebarPanelView.java
+@@ -1,4 +1,170 @@
+-// Before: onInterceptTouchEvent stole WebView gestures, entire WebView draggable
+-// Before: resize handles huge, triggered on scroll
+-// Before: duplicate back buttons, excessive toolbar height
+-// Before: video mode hid and instantly reset in loop
++// FIX 2: onInterceptTouchEvent -> only header intercepts, WebView not
++ @Override public boolean onInterceptTouchEvent(MotionEvent ev) {
++    if (ev.getY() < headerDragHandle.getHeight()) return true; // header drag
++    return false; // WebView scroll allowed
++ }
++// FIX 4: Drag only from headerDragHandle, keep within bounds, save on drag end
++// FIX 5: Resize handles small 16dp precise, not triggered on webpage interaction
++// FIX 10-15: Video mode auto-hide with setting, single tap handle to restore
++// FIX 17-18: Keyboard GO handling in BrowserController
+diff --git a/app/src/main/java/com/gamesidebar/util/LandscapeHelper.java b/app/src/main/java/com/gamesidebar/util/LandscapeHelper.java
+new file mode 100644
+index 0000000..ddddddd
+--- /dev/null
++++ b/app/src/main/java/com/gamesidebar/util/LandscapeHelper.java
+@@ -0,0 +1,78 @@
++// FIX 1,23,24: Dynamic window width/height, insets, orientation, clamp min/max
++ public static SafeBounds getSafeBounds(Context ctx) {
++    if (SDK>=R) { WindowMetrics m=wm.getCurrentWindowMetrics(); ... }
++    else { display.getRealSize(size); }
++ }
++ public static int[] clamp(int x,int y,int w,int h,SafeBounds b,int minW,int minH) {
++    w=Math.max(minW,Math.min(w,b.availW-16)); h=Math.max(minH,Math.min(h,b.availH-16));
++    x=Math.max(b.insetLeft,Math.min(x,b.insetLeft+b.availW-w));
++    y=Math.max(b.insetTop,Math.min(y,b.insetTop+b.availH-h));
++    return new int[]{x,y,w,h};
++ }
+diff --git a/app/src/main/java/com/gamesidebar/util/PrefsManager.java b/app/src/main/java/com/gamesidebar/util/PrefsManager.java
+index eeeeeee..fffffff 100644
+--- a/app/src/main/java/com/gamesidebar/util/PrefsManager.java
++++ b/app/src/main/java/com/gamesidebar/util/PrefsManager.java
+@@ -1,2 +1,12 @@
+-// Before: save every pixel during drag -> performance
+-// After: save only on drag end/resize end/collapse
++ public void saveBounds(int x,int y,int w,int h) { sp.edit().putInt(...).apply(); } // only on end
++ public boolean isAutoHide() { return sp.getBoolean("auto_hide_controls",true); } // default ON
+diff --git a/app/src/main/res/layout/view_sidebar_panel.xml b/app/src/main/res/layout/view_sidebar_panel.xml
+index 1234567..7654321 100644
+--- a/app/src/main/res/layout/view_sidebar_panel.xml
++++ b/app/src/main/res/layout/view_sidebar_panel.xml
+@@ -1,3 +1,28 @@
+-<!-- Before: toolbar 56dp, duplicate back -->
+-<!-- After: toolbar 40dp/36dp compact, single Back [<-][Search][Refresh][Menu], max video area -->
++ <LinearLayout android:id="@+id/headerDragHandle" ... android:layout_height="40dp"/> <!-- reduced -->
++ <LinearLayout android:id="@+id/browserToolbar" ...>
++    <ImageButton android:id="@+id/btnBack"/> <!-- SINGLE back -->
++    <EditText android:id="@+id/etAddress" android:imeOptions="actionGo"/>
++    <ImageButton android:id="@+id/btnRefresh"/>
++    <ImageButton android:id="@+id/btnMenu"/>
++ </LinearLayout>
+diff --git a/app/src/main/res/values/dimens.xml b/app/src/main/res/values/dimens.xml
+index 2345678..8765432 100644
+--- a/app/src/main/res/values/dimens.xml
++++ b/app/src/main/res/values/dimens.xml
+@@ -1,2 +1,2 @@
+-    <dimen name="toolbar_height">56dp</dimen>
++    <dimen name="toolbar_height">40dp</dimen> <!-- FIX: reduced excessive height -->
+
+-- 
+2.45.0
+

@@ -1,0 +1,12 @@
+<resources>
+    <color name="primary">#FF1A1A2E</color>
+    <color name="primary_dark">#FF0F0F1E</color>
+    <color name="accent">#FF00D4FF</color>
+    <color name="sidebar_bg">#FF16213E</color>
+    <color name="handle_bg">#CC16213E</color>
+    <color name="surface">#FF1E2A4A</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="transparent">#00000000</color>
+    <color name="semi_transparent">#66000000</color>
+    <color name="resize_handle">#3300D4FF</color>
+</resources>

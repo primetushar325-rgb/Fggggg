@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.GameSidebar" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@color/primary_dark</item>
+    </style>
+    <style name="SidebarPanel">
+        <item name="android:background">@drawable/bg_sidebar</item>
+        <item name="android:elevation">8dp</item>
+    </style>
+</resources>
