@@ -259,4 +259,5 @@ python3 tools/generate_100_images.py --which full --out /tmp/generated-100-full
 সব ১০০টি serial image এক ফাইলে সাজানো হয়েছে। প্রতিটি page-এর উপরে `IMAGE 001` থেকে `IMAGE 100` পর্যন্ত নম্বর আছে।
 
 - [Download all 100 images as one PDF](docs/assets/ibrahim-story-images-001-100.pdf)
+- [Download the exact 100-image ZIP in serial order](docs/assets/ibrahim-story-001-100.zip)
 - Individual images: `docs/assets/ibrahim-story/image-001.png` থেকে `image-100.png`
