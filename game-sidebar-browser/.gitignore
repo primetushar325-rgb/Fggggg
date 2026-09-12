@@ -1,0 +1,23 @@
+# Gradle / build output
+.gradle/
+build/
+app/build/
+core/build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+captures/
+
+# Signing material - never commit keystores
+*.jks
+*.keystore
+
+# Offline verification scratch space (the scripts default to /tmp, but honour an override)
+.tools-build/
+
+# OS noise
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vector icon: ic_sc_drive. Real vector drawable, never an emoji glyph. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFFFF">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.43,3.5h5.14L21.14,15h-5.14L9.43,3.5zM8.86,4.5L2.29,15.99l2.57,4.46 6.57,-11.45L8.86,4.5zM13.71,16.5H4.86l2.57,4.46h8.85L13.71,16.5z" />
+</vector>
