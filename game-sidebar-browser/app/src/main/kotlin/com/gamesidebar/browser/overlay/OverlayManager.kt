@@ -736,6 +736,18 @@ class OverlayManager(
 
     override fun onUrlChanged(url: String, title: String) {
         panelView?.onUrlChanged(url, title)
+        // V4 BUG #1/4/10: Auto-enter VIDEO_FOCUS_MODE when YouTube video detected — tiny 32dp controls, WebView 85-95% area
+        // WebView remains same instance, no reload, only visibility change
+        if (isYouTubeVideoUrl(url)) {
+            panelView?.enterVideoFocusMode()
+        } else {
+            if (!videoFullscreen) panelView?.exitVideoFocusMode()
+        }
+    }
+
+    private fun isYouTubeVideoUrl(url: String): Boolean {
+        val l = url.lowercase()
+        return l.contains("youtube.com/watch") || l.contains("youtu.be/") || l.contains("youtube.com/embed") || l.contains("m.youtube.com/watch")
     }
 
     override fun onNavigationChanged(canGoBack: Boolean, canGoForward: Boolean, isLoading: Boolean) {

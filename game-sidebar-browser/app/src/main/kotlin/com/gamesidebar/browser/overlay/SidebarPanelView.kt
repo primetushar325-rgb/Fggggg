@@ -97,6 +97,11 @@ class SidebarPanelView(
     private val fullscreenContainer: FrameLayout
     private val buttonExitFullscreen: ImageView
     private val resizeGrip: View
+    // V4 FIX: Compact video controls — tiny border bar 28-40dp, overlayed, only visible in VIDEO_FOCUS_MODE
+    private val compactVideoControls: LinearLayout
+    private val buttonVideoBack: ImageView
+    private val buttonVideoMinimize: ImageView
+    private val buttonVideoClose: ImageView
 
     private val iconCache = HashMap<String, Int>()
     private var shortcuts: ShortcutList = ShortcutList()
@@ -118,6 +123,9 @@ class SidebarPanelView(
 
     /** True between `onShowCustomView` and `onHideCustomView`: the video owns the whole panel. */
     private var videoFullscreen = false
+
+    // V4 FIX: VIDEO_FOCUS_MODE — tiny controls, WebView 85-95% area, no toolbar recreation
+    private var videoFocusMode = false
 
     // Live resize gesture. Deltas are absolute from ACTION_DOWN, so the start values are captured
     // once and every MOVE is a pure function of them - no accumulating drift on a fast drag.
@@ -176,6 +184,10 @@ class SidebarPanelView(
         shortcutRow = requireViewById(R.id.shortcutRow)
         shortcutScroll = requireViewById(R.id.shortcutScroll)
         webContainer = requireViewById(R.id.webContainer)
+        compactVideoControls = requireViewById(R.id.compactVideoControls)
+        buttonVideoBack = requireViewById(R.id.buttonVideoBack)
+        buttonVideoMinimize = requireViewById(R.id.buttonVideoMinimize)
+        buttonVideoClose = requireViewById(R.id.buttonVideoClose)
         toolsContainer = requireViewById(R.id.toolsContainer)
         errorView = requireViewById(R.id.errorView)
         errorIcon = requireViewById(R.id.errorIcon)
@@ -190,6 +202,7 @@ class SidebarPanelView(
         wireToolbar()
         wireResize()
         wireTools()
+        wireVideoFocusControls()
 
         controller.attachContainer(webContainer)
         controller.attachDownloadListener(object : com.gamesidebar.browser.browser.DownloadCoordinator.Listener {
@@ -908,7 +921,54 @@ class SidebarPanelView(
         // Brightness goes back to "no override" (-1) so the panel does not keep the window pinned at
         // full brightness after the video ends.
         host.onApplyWindowBrightness(-1f)
+        // Also exit video focus mode when fullscreen ends — return to normal browser mode without recreating WebView
+        if (videoFocusMode) exitVideoFocusMode()
     }
+
+    // V4 FIX: VIDEO_FOCUS_MODE — tiny 32dp border, WebView 85-95% area, no toolbar recreation
+    private fun wireVideoFocusControls() {
+        buttonVideoBack.setOnClickListener { controller.back() }
+        buttonVideoMinimize.setOnClickListener { host.onMinimize() }
+        buttonVideoClose.setOnClickListener { host.onClose() }
+        // Compact controls only consume touch inside tiny 32dp bar, never fullscreen — game/WebView gestures untouched
+        compactVideoControls.setOnTouchListener { _, event ->
+            // Only handle touches inside the tiny bar, do not create fullscreen transparent layer
+            event.actionMasked == MotionEvent.ACTION_DOWN && compactVideoControls.visibility == View.VISIBLE
+        }
+    }
+
+    fun enterVideoFocusMode() {
+        if (videoFocusMode) return
+        videoFocusMode = true
+        // HIDE completely: tab row, URL/search bar, navigation toolbar, shortcut rows, unnecessary controls
+        tabScroll.visibility = View.GONE
+        findViewById<View>(R.id.toolbar)?.visibility = View.GONE
+        shortcutScroll.visibility = View.GONE
+        pageProgress.visibility = View.GONE
+        // Keep ONLY tiny 32dp border bar — WebView occupies almost entire sidebar (MATCH_PARENT)
+        compactVideoControls.visibility = View.VISIBLE
+        webContainer.layoutParams = (webContainer.layoutParams as ViewGroup.LayoutParams).apply {
+            width = ViewGroup.LayoutParams.MATCH_PARENT
+            height = ViewGroup.LayoutParams.MATCH_PARENT
+        }
+        // Do NOT recreate WebView — same instance, just visibility change + requestLayout
+        requestLayout()
+    }
+
+    fun exitVideoFocusMode() {
+        if (!videoFocusMode) return
+        videoFocusMode = false
+        // Restore NORMAL_BROWSER_MODE: tabs, address, navigation, shortcuts — without recreating WebView
+        // Let applyChrome decide visibility, but ensure not forced GONE
+        tabScroll.visibility = View.VISIBLE
+        findViewById<View>(R.id.toolbar)?.visibility = View.VISIBLE
+        shortcutScroll.visibility = View.VISIBLE
+        pageProgress.visibility = View.INVISIBLE
+        compactVideoControls.visibility = View.GONE
+        requestLayout()
+    }
+
+    fun isVideoFocusMode(): Boolean = videoFocusMode
 
     // ---------------------------------------------------------------- errors
 

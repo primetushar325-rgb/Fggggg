@@ -259,12 +259,12 @@ class BrowserController(
     }
 
     override fun onPageFinished(url: String, title: String?) {
-        // BUG #1 FIX: Detect blocked embedded login (disallowed_useragent, "Couldn't sign you in") and handoff to CustomTab
-        // Only auth flow uses CustomTab; normal browsing stays inside WebView; never store passwords
-        if (UrlSafety.isBlockedSignIn(url, title) || UrlSafety.requiresExternalAuth(url)) {
+        // V4 BUG #5 FIX: Remove blanket restriction — only third-party OAuth hosts trigger CustomTab
+        // Normal login forms (<input type=email/password>) must work normally inside WebView
+        // DO NOT block just because floating/overlay/small — only when provider explicitly blocks embedded (disallowed_useragent + OAuth hosts)
+        if (UrlSafety.requiresExternalAuth(url) || url.lowercase().contains("disallowed_useragent")) {
             // Preserve WebView session — do not destroy/reload — show Secure Login error with CustomTab fallback
-            // isBlockedSignIn covers pages that already loaded with error; requiresExternalAuth covers OAuth hosts
-            // Avoid duplicate trigger if already handling auth
+            // Only auth flow uses CustomTab; normal browsing stays inside WebView; never store passwords
             if (title?.contains("Secure login", ignoreCase = true) != true) {
                 listener.onExternalAuthRequired(url)
                 updateTab(tabs.activeId) {
