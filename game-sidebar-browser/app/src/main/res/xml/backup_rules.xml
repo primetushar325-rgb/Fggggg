@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Bookmarks, history, notes and settings are the user's own data: include them. -->
+    <include domain="database" path="gamesidebar.db" />
+    <include domain="file" path="datastore" />
+    <!-- WebView cookies and site data are deliberately excluded from backup. -->
+    <exclude domain="file" path="webview" />
+</full-backup-content>
