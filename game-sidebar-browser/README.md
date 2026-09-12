@@ -37,11 +37,40 @@ offline except for the web content you load.
 **Floating panel**
 - Opens with a spring/fade/scale animation anchored on the handle, 260 ms
   `OvershootInterpolator`, closing in 160 ms. Animations are skipped in Gaming Mode.
-- Size presets Small / Medium / Large, manual resize from the corner grip, nine anchor positions
-  (Top / Middle / Bottom x Left / Center / Right) plus free drag from the header.
+- Size presets Small / Medium / Large, nine anchor positions (Top / Middle / Bottom x Left /
+  Center / Right) plus free drag from the header.
+- Manual resize from **all four edges and all four corners**. The touch target is the panel's own
+  10dp padding ring, which contains no children, so resizing can never take a scroll or a tap away
+  from the page; the visible bottom-right grip stays as the generous corner target. Minimum and
+  maximum width and height are enforced against the *current* screen, and dragging the left or top
+  edge past a limit stops the edge instead of sliding the whole panel.
+- The panel rectangle (position **and** size) is persisted as fractions of the usable screen and
+  restored on reopen, so collapsing the sidebar and bringing it back does not reset it. It is
+  written at gesture end and on collapse, never per pixel of movement.
+- Responsive in landscape: the width is capped so the game stays visible on both sides and the
+  height is raised until the page has real scrolling room. Rows the panel cannot afford are hidden
+  (shortcut row first, then the tab strip, then the toolbar's forward/bookmark buttons - which move
+  into the overflow menu rather than disappearing). Nothing is removed, and everything returns when
+  the panel is tall enough again.
+- Rotation carries both windows across proportionally and clamps them into the new safe area. A
+  portrait pixel coordinate is meaningless in landscape, so nothing is re-anchored to a default and
+  the panel cannot end up mostly off-screen.
 - Opacity 20-100 % (default 90 %), glow on/off with Low / Medium / High and five colours.
 - Tap outside to close, swipe down on the header to minimise, swipe left/right on the tab strip to
   switch tabs.
+
+**Touch ownership** - three surfaces, three owners, decided once per gesture on `ACTION_DOWN`:
+
+| Where the finger lands | Who gets the gesture |
+| --- | --- |
+| Panel border ring (10dp) or the corner grip | Resize the panel |
+| Header row | Drag the panel |
+| Everywhere else, including the page | The WebView: scroll, tap, text entry, video controls |
+
+Outside the panel the window is `FLAG_NOT_TOUCH_MODAL`, so aiming, shooting, movement and camera
+swipes reach the game untouched - there is no full-screen transparent interceptor. While the open
+panel covers the handle, the handle window is switched to `FLAG_NOT_TOUCHABLE` and hidden, so it
+cannot swallow a strip of the game's input either.
 
 **Mini browser**
 - Address bar that distinguishes URLs from search text (`UrlResolver`), back / forward / reload /
@@ -81,13 +110,14 @@ game-sidebar-browser/
 │       ├── calc/       Calculator (shunting-yard + postfix evaluation)
 │       ├── data/       Bookmarks, History, Notes, Clipboard models + rules
 │       ├── download/   Downloads (mime map, filename sanitising)
-│       ├── geometry/   OverlayGeometry (dp, handle snap, panel placement)
+│       ├── geometry/   OverlayGeometry (dp, handle snap, panel placement, orientation-aware
+│       │               sizing, chrome fit, resize/rotation maths, persisted panel frame)
 │       ├── model/      AppSettings and the value types it is built from
 │       ├── security/   UrlSafety (scheme policy, SSL error keys)
 │       ├── service/    OverlayCommand
 │       ├── timer/      TimerState
 │       └── util/       Formatting
-│   └── src/test/kotlin/...   141 tests, plain JVM, no test framework needed
+│   └── src/test/kotlin/...   164 tests, plain JVM, no test framework needed
 ├── app/
 │   └── src/main/
 │       ├── AndroidManifest.xml
@@ -157,7 +187,7 @@ publishing anywhere.
 Two scripts verify the project without an Android SDK, a Gradle download or a network:
 
 ```bash
-tools/run_core_tests.sh     # compiles :core and runs its 141 tests as a plain JVM program
+tools/run_core_tests.sh     # compiles :core and runs its 164 tests as a plain JVM program
 tools/check_app.sh          # compiles the whole :app module against tools/android-stubs
 tools/verify_all.sh         # both
 ```
@@ -190,7 +220,7 @@ UI (Compose screens)      Overlay (Views)
 
 - **`core`** holds every rule that is not Android: URL routing, tab state, geometry, the
   calculator, timer transitions, download filename handling, the URL safety policy. It has no
-  Android imports, so it is unit-testable on a plain JVM - 141 tests, ~300 ms.
+  Android imports, so it is unit-testable on a plain JVM - 164 tests, ~300 ms.
 - **Repositories** are the only writers. `SettingsRepository` owns DataStore,
   `BrowserDataRepository` owns Room, both expose `Flow`s that the UI collects.
 - **`BrowserController`** owns the single WebView instance and is the only class that talks to it.
@@ -227,7 +257,13 @@ foreground-service notification is both a Play policy violation and a lie to the
 ## Design decisions and platform limits
 
 **YouTube and sign-in.** YouTube plays in the WebView (fullscreen video is supported by growing the
-panel window and re-parenting the WebView's custom view). Google sign-in inside a WebView is
+panel window and re-parenting the WebView's custom view). Leaving fullscreen - whether the page
+leaves it or you press the panel's own exit button - goes through
+`WebChromeClient.onHideCustomView`, which is the only thing that tells the page its fullscreen
+ended; the panel then returns to the exact rectangle it had before the video started, with the
+toolbar revealed again. Collapsing the sidebar mid-video releases the custom view the same way, so
+the next video can still go fullscreen, and the WebView is never destroyed by hiding, showing,
+dragging or resizing the panel. Google sign-in inside a WebView is
 blocked by Google's own policy, and this app does not try to work around it. When the page asks for
 a login the app offers "Open login in browser" via Custom Tabs and returns afterwards. Passwords
 are never captured, stored or autofilled by this app.

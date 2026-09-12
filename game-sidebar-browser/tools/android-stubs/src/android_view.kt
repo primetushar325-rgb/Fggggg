@@ -118,6 +118,9 @@ open class ViewGroup(context: Context) : View(context) {
     open fun removeAllViews() {}
     open fun getChildAt(index: Int): View? = null
 
+    /** Real signature: `public boolean onInterceptTouchEvent(MotionEvent ev)`. */
+    open fun onInterceptTouchEvent(event: MotionEvent): Boolean = false
+
     open class LayoutParams(var width: Int, var height: Int) {
         companion object {
             const val MATCH_PARENT = -1
@@ -275,6 +278,7 @@ class WindowManager {
             const val TYPE_APPLICATION_OVERLAY = 2038
             const val TYPE_PHONE = 2002
             const val FLAG_NOT_FOCUSABLE = 8
+            const val FLAG_NOT_TOUCHABLE = 16
             const val FLAG_NOT_TOUCH_MODAL = 32
             const val FLAG_WATCH_OUTSIDE_TOUCH = 262144
             const val FLAG_LAYOUT_NO_LIMITS = 512

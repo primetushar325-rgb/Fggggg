@@ -21,6 +21,7 @@ object CoreTestSuites {
         "Shortcut persistence codec" to ShortcutCodecTests.cases,
         "Calculator & timer" to CalculatorAndTimerTests.cases,
         "Overlay geometry & edge snap" to GeometryTests.cases,
+        "Landscape, chrome & panel state geometry" to PanelStateGeometryTests.cases,
         "Downloads" to DownloadTests.cases,
         "Bookmarks, history, notes, clipboard" to DataStoreTests.cases,
         "Settings, commands & formatting" to SettingsAndCommandTests.cases,

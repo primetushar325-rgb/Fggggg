@@ -324,6 +324,20 @@ class BrowserController(
 
     override fun onExitFullscreen() = listener.onExitFullscreen()
 
+    /** True while a page (typically a YouTube video) owns the fullscreen custom view. */
+    val isFullscreen: Boolean get() = chromeClient.currentCustomView() != null
+
+    /**
+     * Leaves HTML5 fullscreen from *our* side - the panel's own exit button, or the panel being
+     * torn down while a video is still playing.
+     *
+     * Going through [SidebarWebChromeClient.releaseCustomView] matters: it clears the retained
+     * custom view and calls `onCustomViewHidden()`, which is the only thing that tells the page its
+     * fullscreen ended. Skipping it leaves the chrome client holding a stale view, so the next
+     * `onShowCustomView` is refused and video fullscreen stays broken for the whole session.
+     */
+    fun exitFullscreen() = chromeClient.releaseCustomView()
+
     // ---------------------------------------------------------------- internals
 
     private fun ensureWebView(tabId: String): WebView {
