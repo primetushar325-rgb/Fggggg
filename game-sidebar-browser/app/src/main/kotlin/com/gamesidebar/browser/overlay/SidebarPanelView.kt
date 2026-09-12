@@ -951,8 +951,8 @@ class SidebarPanelView(
             width = ViewGroup.LayoutParams.MATCH_PARENT
             height = ViewGroup.LayoutParams.MATCH_PARENT
         }
-        // Do NOT recreate WebView — same instance, just visibility change + requestLayout
-        requestLayout()
+        // Do NOT recreate WebView — same instance, just visibility change
+        invalidate()
     }
 
     fun exitVideoFocusMode() {
@@ -965,7 +965,7 @@ class SidebarPanelView(
         shortcutScroll.visibility = View.VISIBLE
         pageProgress.visibility = View.INVISIBLE
         compactVideoControls.visibility = View.GONE
-        requestLayout()
+        invalidate()
     }
 
     fun isVideoFocusMode(): Boolean = videoFocusMode

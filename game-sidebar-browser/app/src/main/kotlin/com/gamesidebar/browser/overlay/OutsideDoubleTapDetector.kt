@@ -1,7 +1,5 @@
 package com.gamesidebar.browser.overlay
 
-import android.graphics.Rect
-import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.WindowManager
 
@@ -21,10 +19,16 @@ class OutsideDoubleTapDetector(
 ) {
     private var lastOutsideTapTime = 0L
     private val doubleTapTimeoutMs = 300L // ViewConfiguration.getDoubleTapTimeout()
-    private val sidebarBounds = Rect()
+    private var boundsLeft = 0
+    private var boundsTop = 0
+    private var boundsRight = 0
+    private var boundsBottom = 0
 
     fun updateSidebarBounds(x: Int, y: Int, w: Int, h: Int) {
-        sidebarBounds.set(x, y, x + w, y + h)
+        boundsLeft = x
+        boundsTop = y
+        boundsRight = x + w
+        boundsBottom = y + h
     }
 
     /**
@@ -35,8 +39,9 @@ class OutsideDoubleTapDetector(
      */
     fun onOutsideTouch(event: MotionEvent): Boolean {
         if (event.actionMasked != MotionEvent.ACTION_OUTSIDE) return false
-        val now = SystemClock.uptimeMillis()
-        return if (now - lastOutsideTapTime < doubleTapTimeoutMs) {
+        val now = System.currentTimeMillis()
+        val isDouble = now - lastOutsideTapTime < doubleTapTimeoutMs
+        return if (isDouble) {
             lastOutsideTapTime = 0L
             onDoubleTapOutside()
             true
@@ -51,10 +56,14 @@ class OutsideDoubleTapDetector(
      * Used as fallback if ACTION_OUTSIDE not delivered.
      */
     fun onTouchMaybeOutside(rawX: Float, rawY: Float): Boolean {
-        val outside = !sidebarBounds.contains(rawX.toInt(), rawY.toInt())
+        val x = rawX.toInt()
+        val y = rawY.toInt()
+        val inside = x >= boundsLeft && x < boundsRight && y >= boundsTop && y < boundsBottom
+        val outside = !inside
         if (!outside) return false
-        val now = SystemClock.uptimeMillis()
-        return if (now - lastOutsideTapTime < doubleTapTimeoutMs) {
+        val now = System.currentTimeMillis()
+        val isDouble = now - lastOutsideTapTime < doubleTapTimeoutMs
+        return if (isDouble) {
             lastOutsideTapTime = 0L
             onDoubleTapOutside()
             true
