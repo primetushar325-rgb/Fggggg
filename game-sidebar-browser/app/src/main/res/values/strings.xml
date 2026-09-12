@@ -103,9 +103,11 @@
     <string name="error_service_restricted">The system stopped the sidebar service</string>
     <string name="error_service_body">Battery optimisation may be killing the service. Allow unrestricted background usage for Game SideBar.</string>
     <string name="error_download_failed">Download failed</string>
-    <string name="error_login_blocked">This site does not allow sign-in inside a floating browser</string>
+    <!-- BUG #1 FIX: Secure auth handoff — only auth flow uses CustomTab, normal browsing stays inside WebView, never store passwords -->
+    <string name="error_login_blocked">Secure login is required for this website.</string>
+    <string name="error_login_blocked_bn">এই সাইটটি নিরাপত্তার কারণে embedded browser login অনুমতি দিচ্ছে না।</string>
     <string name="error_login_body">Continue the sign-in in your normal browser. Game SideBar never stores your password.</string>
-    <string name="error_action_open_login">Open Login in Browser</string>
+    <string name="error_action_open_login">Secure Login</string>
 
     <!-- Bookmarks / history / notes -->
     <string name="bookmarks_title">Bookmarks</string>

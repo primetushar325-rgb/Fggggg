@@ -123,9 +123,15 @@ public class OverlayManager {
         panelView.setOnPanelResizeListener(new SidebarPanelView.OnPanelResizeListener() {
             int startX, startY, startW, startH;
             @Override public void onResize(int dx, int dy, int w, int h) {
+                // BUG #3 FIX: Resize must NEVER recreate WebView or stop video — only change LayoutParams, same WebView instance
+                // If fullscreen video, temporarily constrain resize (keep video playing) rather than breaking playback
+                if (panelView != null && panelView.getVideoManager() != null && panelView.getVideoManager().isVideoMode()) {
+                    return;
+                }
                 // For simplicity, handle right/bottom resize; full 4-edge with clamping
                 // Determine edge already from SidebarPanelView - we apply delta
                 // This is simplified: resize from right/bottom only for safety
+                // Performance: only update LayoutParams, no reload, no recreate, no save per pixel
                 LandscapeHelper.SafeBounds b = LandscapeHelper.getSafeBounds(ctx);
                 int newW = startW + dx;
                 int newH = startH + dy;

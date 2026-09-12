@@ -259,6 +259,28 @@ class BrowserController(
     }
 
     override fun onPageFinished(url: String, title: String?) {
+        // BUG #1 FIX: Detect blocked embedded login (disallowed_useragent, "Couldn't sign you in") and handoff to CustomTab
+        // Only auth flow uses CustomTab; normal browsing stays inside WebView; never store passwords
+        if (UrlSafety.isBlockedSignIn(url, title) || UrlSafety.requiresExternalAuth(url)) {
+            // Preserve WebView session — do not destroy/reload — show Secure Login error with CustomTab fallback
+            // isBlockedSignIn covers pages that already loaded with error; requiresExternalAuth covers OAuth hosts
+            // Avoid duplicate trigger if already handling auth
+            if (title?.contains("Secure login", ignoreCase = true) != true) {
+                listener.onExternalAuthRequired(url)
+                updateTab(tabs.activeId) {
+                    it.copy(
+                        url = url,
+                        title = title ?: it.title,
+                        isLoading = false,
+                        canGoBack = webViews[activeTabId ?: ""]?.canGoBack() == true,
+                        canGoForward = webViews[activeTabId ?: ""]?.canGoForward() == true,
+                    )
+                }
+                publishTabs()
+                publishNavigation()
+                return
+            }
+        }
         val webView = activeWebView ?: return
         updateTab(tabs.activeId) {
             it.copy(

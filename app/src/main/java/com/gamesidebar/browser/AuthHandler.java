@@ -20,26 +20,46 @@ public class AuthHandler {
         "embedded", "webview_blocked", "disallowed_useragent"
     };
 
+    // BUG #1 FIX: Proper auth handoff — only OAuth flow uses CustomTab, normal browsing stays inside WebView
+    private static final String[] EXTERNAL_AUTH_HOSTS = {
+        "accounts.google.com", "accounts.youtube.com", "accounts.google.co.in", "auth.google.com"
+    };
+
     public static boolean isAuthBlockedUrl(String url) {
         if (url == null) return false;
         String l = url.toLowerCase();
-        // Google OAuth explicitly blocks WebView
+        // Host-based check (like UrlSafety.requiresExternalAuth) — Google blocks WebView OAuth
+        for (String host : EXTERNAL_AUTH_HOSTS) {
+            if (l.contains(host)) return true;
+        }
+        // Legacy check
         if (l.contains("accounts.google.com") && (l.contains("oauth") || l.contains("signin"))) {
             return true;
         }
+        if (l.contains("disallowed_useragent")) return true;
         return false;
     }
 
     public static boolean isAuthBlockedContent(WebView view, String url) {
-        // Check title for block messages (simplified)
         String title = view.getTitle();
+        // Check URL for disallowed_useragent (Google's blocked embedded login response)
+        if (url != null && url.toLowerCase().contains("disallowed_useragent")) return true;
         if (title != null) {
             String t = title.toLowerCase();
-            if (t.contains("does not allow") || t.contains("embedded") || t.contains("browser not supported")) {
+            if (t.contains("does not allow") || t.contains("embedded") || t.contains("browser not supported") || t.contains("couldn't sign you in") || t.contains("could not sign you in")) {
                 return true;
             }
         }
+        // Also check current URL via isAuthBlockedUrl
+        if (url != null && isAuthBlockedUrl(url)) return true;
         return false;
+    }
+
+    public static boolean isBlockedSignIn(String url, String title) {
+        if (url != null && url.toLowerCase().contains("disallowed_useragent")) return true;
+        if (url != null && url.toLowerCase().contains("accounts.google.com") && url.toLowerCase().contains("error")) return true;
+        if (title != null && title.toLowerCase().contains("couldn't sign you in")) return true;
+        return isAuthBlockedUrl(url) || isAuthBlockedContent(null, url);
     }
 
     public static void openSecureLogin(Context ctx, String url) {

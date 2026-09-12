@@ -3,6 +3,7 @@ package com.gamesidebar.browser.overlay
 import android.content.Context
 import android.graphics.PixelFormat
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
@@ -96,6 +97,9 @@ class OverlayManager(
 
     /** True while the open panel covers the handle and its window is therefore touch-transparent. */
     private var handleCovered = false
+
+    // BUG #2 FIX: Double-tap outside to collapse — no fullscreen transparent view, single tap does nothing, game touch untouched
+    private val outsideDetector = OutsideDoubleTapDetector { hidePanel() }
 
     private val controller: BrowserController by lazy {
         BrowserController(
@@ -256,6 +260,15 @@ class OverlayManager(
             x = panelOrigin.x
             y = panelOrigin.y
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        }
+
+        // BUG #2 FIX: Wire double-tap outside detector — single outside does nothing, double outside collapses, no fullscreen blocker
+        outsideDetector.updateSidebarBounds(panelOrigin.x, panelOrigin.y, panelSize.widthPx, panelSize.heightPx)
+        view.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                outsideDetector.onOutsideTouch(event)
+                false // never consume — game must still receive single tap
+            } else false
         }
 
         runCatching { windowManager.addView(view, params) }.onSuccess {
@@ -483,6 +496,7 @@ class OverlayManager(
         params.x = panelOrigin.x
         params.y = panelOrigin.y
         runCatching { windowManager.updateViewLayout(panel, params) }
+        outsideDetector.updateSidebarBounds(panelOrigin.x, panelOrigin.y, panelSize.widthPx, panelSize.heightPx)
         applyChromeToPanel()
         updateHandleCoverage()
     }
@@ -651,6 +665,7 @@ class OverlayManager(
         params.y = next.y
         panelOrigin = next
         panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
+        outsideDetector.updateSidebarBounds(panelOrigin.x, panelOrigin.y, panelSize.widthPx, panelSize.heightPx)
     }
 
     override fun onPanelDragEnd() {
@@ -662,6 +677,7 @@ class OverlayManager(
         panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
         applyChromeToPanel()
         updateHandleCoverage()
+        outsideDetector.updateSidebarBounds(panelOrigin.x, panelOrigin.y, panelSize.widthPx, panelSize.heightPx)
         // End of a drag or of a resize: the rectangle is final, so this is where it gets persisted.
         persistPanelFrame()
     }
@@ -673,6 +689,8 @@ class OverlayManager(
     }
 
     override fun onPanelResize(resize: PanelResize) {
+        // BUG #3 FIX: Resize must NEVER recreate WebView or stop video — only change LayoutParams, same WebView instance
+        // If fullscreen, temporarily constrain resize (prefer to keep video playing) rather than breaking playback
         if (videoFullscreen) return
         val params = panelParams ?: return
         // All limits (min/max width and height, and staying inside the safe area) are resolved in
@@ -684,7 +702,9 @@ class OverlayManager(
         params.height = placement.size.heightPx
         params.x = placement.origin.x
         params.y = placement.origin.y
+        // BUG #3: Only update LayoutParams + requestLayout — WebView remains attached, same instance, no reload, no recreate
         panelView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
+        outsideDetector.updateSidebarBounds(panelOrigin.x, panelOrigin.y, panelSize.widthPx, panelSize.heightPx)
         // Cheap and worth it: shrinking the panel past a threshold immediately hands the space back to
         // the page. applyChrome ignores the call unless the layout bucket actually changed, so a resize
         // that reports a new height on every move does not rebuild the toolbar every move.
