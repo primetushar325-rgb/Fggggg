@@ -83,6 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--template", default=os.path.join(here, "..", "docs", "assets", "blank-character-sheet.png"))
     parser.add_argument("--slots", default=os.path.join(here, "slots.json"))
     parser.add_argument("--which", choices=["front", "front-side", "full"], default="front-side")
+    parser.add_argument("--seed", type=int, default=0, help="Offset the artwork pattern to make repeatable variants")
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
 
@@ -92,7 +93,8 @@ def main(argv: list[str] | None = None) -> int:
 
     chosen = select_slots(template["slots"], args.which)
     for index, slot in enumerate(chosen):
-        paint(image, slot, PALETTE[index % len(PALETTE)], index)
+        variant_index = index + args.seed
+        paint(image, slot, PALETTE[variant_index % len(PALETTE)], variant_index)
 
     out = os.path.abspath(args.out)
     parent = os.path.dirname(out)
